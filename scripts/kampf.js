@@ -323,7 +323,7 @@ function processActiveAttacks() {
             const ty = Math.floor(targetIdx / GRID_W);
 
             // ==============================================================
-            // 1. FESTUNGS-SCHUTZ: Liegt diese Kachel im Einflussbereich einer Festung?
+            // 1. FESTUNGS-SCHUTZ PRÜFEN
             // ==============================================================
             let activeShieldFort = null;
             if (typeof mapPOIs !== 'undefined') {
@@ -341,52 +341,47 @@ function processActiveAttacks() {
             }
 
             // ==============================================================
-            // 2. KAMPF GEGEN ODER UM EINE FESTUNG (KEIN DEADLOCK MEHR!)
+            // 2. KAMPF GEGEN FESTUNG (DIREKTER DURCHBRUCH STATT BLOCKADE!)
             // ==============================================================
             if (activeShieldFort) {
                 const garrison = activeShieldFort.garrison;
-                const siegeForce = atk.troops;
+                // Wir zählen nicht nur den Rest der Welle, sondern auch deine Gesamtarmee im Rücken, wenn du mehr Truppen hast!
+                const totalPower = Math.max(atk.troops, attacker.troops);
 
-                // FALL A: MASSIVE ÜBERMACHT (z.B. 10k gegen 1k -> Sofortiger Durchbruch!)
-                // Wenn deine Armee mindestens 2x so groß ist wie die Garnison, bricht die Festung sofort zusammen!
-                if (siegeForce >= garrison * 2.0) {
-                    const attackerLoss = Math.floor(garrison * 0.5); // Du verlierst nur die Hälfte der Garnisonsgröße
-                    atk.troops = Math.max(0, atk.troops - attackerLoss);
+                // FALL A: Du hast mehr Truppen als die Festung (z.B. 50k vs 24k) -> SOFORTIGER BRUCH!
+                if (atk.troops > garrison || totalPower > garrison * 1.2) {
+                    const costToBreak = Math.floor(garrison * 0.35);
+                    if (atk.troops >= costToBreak) {
+                        atk.troops -= costToBreak;
+                    } else {
+                        const rest = costToBreak - atk.troops;
+                        atk.troops = Math.max(50, Math.floor(attacker.troops * 0.1));
+                        attacker.troops = Math.max(0, attacker.troops - rest);
+                    }
 
+                    // Festung wechselt sofort den Besitzer!
                     activeShieldFort.factionId = atk.attackerId;
                     ownerGrid[activeShieldFort.idx] = atk.attackerId;
 
                     const conqueror = factions[atk.attackerId];
                     const cName = conqueror ? conqueror.name : 'Feind';
                     activeShieldFort.name = `Festung (${cName})`;
+                    activeShieldFort.garrison = Math.min(500, Math.max(25, Math.floor(garrison * 0.10)));
 
-                    // Neue kleine Start-Garnison für den Eroberer
-                    const finalGarrison = Math.max(25, Math.floor(garrison * 0.15));
-                    activeShieldFort.garrison = finalGarrison;
-
-                    addVisualEffect(activeShieldFort.x, activeShieldFort.y, `💥 FESTUNG ÜBERRANNT (${cName})!`, '#10b981', '🏰');
+                    addVisualEffect(activeShieldFort.x, activeShieldFort.y, `💥 FESTUNG GEBROCHEN (${cName})!`, '#10b981', '🏰');
                     if (typeof playSoundCapitalFall === 'function') playSoundCapitalFall();
-                    
-                    // Kein 'continue'! Die Truppen rollen im selben Tick direkt normal weiter übers Land!
+                    // KEIN continue! Die Armee nimmt das Feld sofort normal ein und rollt drüber!
                 } 
-                // FALL B: REGULÄRER FESTUNGSKAMPF (Armee ist kleiner als 2x Garnison)
+                // FALL B: Du greifst wirklich mit weniger Truppen an als in der Festung sitzen
                 else {
-                    // Pro Tick wird nur EINMAL pro Festung gekämpft (nicht pro Grenzpixel!)
                     if (!touchedFortressesThisStep.has(activeShieldFort.idx)) {
                         touchedFortressesThisStep.add(activeShieldFort.idx);
 
-                        // Wie stark drückt der Angreifer gegen die Garnison?
-                        const ratio = siegeForce / Math.max(1, garrison);
-                        
-                        // Schaden an der Festung (mindestens 15% der Angreiferstärke pro Tick)
-                        const dmgToFort = Math.max(25, Math.floor(siegeForce * 0.18 * ratio));
-                        // Schaden am Angreifer (Festung hat leichten Verteidigungsbonus von 1.2x)
-                        const dmgToAttacker = Math.max(20, Math.floor(dmgToFort * 1.2));
+                        // Du haust der Festung pro Tick 40% deiner Angriffstruppen rein
+                        const damage = Math.max(50, Math.floor(atk.troops * 0.40));
+                        activeShieldFort.garrison = Math.max(0, activeShieldFort.garrison - damage);
+                        atk.troops = Math.max(0, atk.troops - Math.floor(damage * 0.60));
 
-                        activeShieldFort.garrison = Math.max(0, activeShieldFort.garrison - dmgToFort);
-                        atk.troops = Math.max(0, atk.troops - dmgToAttacker);
-
-                        // Wenn die Garnison auf 0 fällt -> Eroberung!
                         if (activeShieldFort.garrison <= 0) {
                             activeShieldFort.factionId = atk.attackerId;
                             ownerGrid[activeShieldFort.idx] = atk.attackerId;
@@ -394,14 +389,14 @@ function processActiveAttacks() {
                             const conqueror = factions[atk.attackerId];
                             const cName = conqueror ? conqueror.name : 'Feind';
                             activeShieldFort.name = `Festung (${cName})`;
-                            activeShieldFort.garrison = Math.max(20, Math.floor(atk.troops * 0.05));
+                            activeShieldFort.garrison = 50;
 
-                            addVisualEffect(activeShieldFort.x, activeShieldFort.y, `🚩 Festung geknackt!`, '#f59e0b', '🏰');
+                            addVisualEffect(activeShieldFort.x, activeShieldFort.y, `🚩 Festung erobert!`, '#f59e0b', '🏰');
                             if (typeof playSoundCapitalFall === 'function') playSoundCapitalFall();
                         }
                     }
 
-                    // Solange die Festung noch steht, bleibt die aktuelle Frontlinie erhalten (kein Löschen der Front!)
+                    // Falls sie noch lebt, behältst du das Grenzfeld für den nächsten Tick, statt den Angriff abzubrechen!
                     if (activeShieldFort.garrison > 0) {
                         nextFrontierSet.add(targetIdx);
                         continue;
@@ -409,7 +404,9 @@ function processActiveAttacks() {
                 }
             }
 
-            // Normaler Geländekampf (nur außerhalb des Festungsschutzes)
+            // ==============================================================
+            // 3. NORMALER GELÄNDEKAMPF
+            // ==============================================================
             let terrainFactor = 1.0 + Math.max(0, elevationGrid[targetIdx]) * 1.6;
             if (typeof currentSeason !== 'undefined' && currentSeason === 'WINTER') {
                 if (elevationGrid[targetIdx] > 0.25) terrainFactor *= 1.85;
@@ -483,7 +480,6 @@ function processActiveAttacks() {
             if (atk.troops >= attackerCost) {
                 atk.troops -= attackerCost;
 
-                // Feindliche Hauptstadt fällt
                 if (poiOnField && poiOnField.type === 'capital' && poiOnField.factionId === atk.targetOwnerId) {
                     if (defender && defender.alive) {
                         const plunder = Math.floor(defender.troops * 0.40);
