@@ -1,5 +1,5 @@
 /***********************************************************************
- * 5. ANGRIFFS- & EXPANSIONS-WELLEN, FLOTTEN, BUNKER-RIEGEL & BUFFS
+ * 5. ANGRIFFS- & EXPANSIONS-WELLEN, FLOTTEN & BUFFS (EXAKTE TRUPPEN-LOGIK)
  ***********************************************************************/
 let activeFleets = [];
 
@@ -8,6 +8,7 @@ function initiateAttack(attackerId, targetOwnerId, percentage, tapX = null, tapY
     if (!attacker || !attacker.alive) return false;
     if (attackerId === targetOwnerId || targetOwnerId === OWNER_WATER || targetOwnerId === OWNER_MOUNTAIN) return false;
 
+    // Exakte Truppenstärke, die vom Reich abgezogen und als Welle losgeschickt wird
     const sendTroops = Math.floor(attacker.troops * percentage);
     if (sendTroops < 5) {
         if (attackerId === OWNER_PLAYER && tapX !== null) {
@@ -160,14 +161,14 @@ function initiateAttack(attackerId, targetOwnerId, percentage, tapX = null, tapY
             return false;
         }
 
+        // HIER WIRD ES DIREKT VOM REICH ABGEZOGEN:
         attacker.troops -= sendTroops;
 
-        let calculatedSpeed = Math.max(0.0015, 0.0055 / (minCoastDist / 45));
-
+        let calculatedSpeed = Math.max(0.001, 0.0035 / (minCoastDist / 45));
         if (typeof mapPOIs !== 'undefined') {
             const hasPort = mapPOIs.some(p => p.type === 'port' && ownerGrid[p.idx] === attackerId);
             if (hasPort) {
-                calculatedSpeed *= 2.0;
+                calculatedSpeed *= 1.6;
             }
         }
 
@@ -199,9 +200,10 @@ function initiateAttack(attackerId, targetOwnerId, percentage, tapX = null, tapY
         addVisualEffect(tapX, tapY, label, '#10b981', '⚔️');
     }
 
+    // Laufende Angriffe gegen denselben Gegner bündeln
     for (const atk of activeAttacks) {
         if (atk.attackerId === attackerId && atk.targetOwnerId === targetOwnerId) {
-            attacker.troops -= sendTroops;
+            attacker.troops -= sendTroops; // Sofortiger Abzug vom Hauptlager
             atk.troops += sendTroops;
             atk.maxTroops = Math.max(atk.maxTroops || atk.troops, atk.troops);
             const merged = new Set([...atk.frontier, ...frontierSet]);
@@ -210,7 +212,9 @@ function initiateAttack(attackerId, targetOwnerId, percentage, tapX = null, tapY
         }
     }
 
+    // HIER WIRD ES DIREKT VOM REICH ABGEZOGEN:
     attacker.troops -= sendTroops;
+
     activeAttacks.push({
         attackerId,
         targetOwnerId,
@@ -220,13 +224,13 @@ function initiateAttack(attackerId, targetOwnerId, percentage, tapX = null, tapY
         frontier: Array.from(frontierSet),
         frontCenterX: 0,
         frontCenterY: 0,
-        efficiencyRatio: 1.0
+        efficiencyRatio: 1.0,
+        stepAccum: 1.0
     });
     return true;
 }
 
 function processActiveAttacks() {
-    // 1. Marine-Bewegungen abarbeiten
     for (let f = activeFleets.length - 1; f >= 0; f--) {
         const fleet = activeFleets[f];
         fleet.progress += fleet.speed;
@@ -259,7 +263,8 @@ function processActiveAttacks() {
                 frontier: Array.from(landingFrontier),
                 frontCenterX: tx,
                 frontCenterY: ty,
-                efficiencyRatio: 1.0
+                efficiencyRatio: 1.0,
+                stepAccum: 1.0
             });
 
             addVisualEffect(fleet.targetX, fleet.targetY, '⚓ Invasion gelandet!', '#38bdf8', '🔥');
@@ -271,15 +276,16 @@ function processActiveAttacks() {
     if (activeAttacks.length === 0 && activeFleets.length === 0) return;
 
     let anyPixelChanged = false;
-    const sizeScale = (240 * 180) / TOTAL_CELLS;
-    const baseNeutralCost = Math.max(0.15, 1.35 * sizeScale);
+    const sizeScale = (650 * 650) / TOTAL_CELLS;
+    const baseNeutralCost = Math.max(0.3, 0.8 * sizeScale);
 
     for (let i = activeAttacks.length - 1; i >= 0; i--) {
         const atk = activeAttacks[i];
         const attacker = factions[atk.attackerId];
 
-        if (!attacker || !attacker.alive || atk.troops < 5 || atk.frontier.length === 0) {
+        if (!attacker || !attacker.alive || atk.troops < 2 || atk.frontier.length === 0) {
             if (attacker && attacker.alive && atk.troops > 0) {
+                // Resttruppen der Welle kehren ordnungsgemäß ins Hauptlager zurück
                 attacker.troops += atk.troops;
             }
             activeAttacks.splice(i, 1);
@@ -292,7 +298,7 @@ function processActiveAttacks() {
         for (let j = 0; j < atk.frontier.length; j++) {
             const cIdx = atk.frontier[j];
             const isWalkable = terrainGrid[cIdx] === TERRAIN_LAND || terrainGrid[cIdx] === TERRAIN_ICE;
-            if ((ownerGrid[cIdx] === atk.targetOwnerId || ownerGrid[cIdx] === OWNER_NEUTRAL) && isWalkable) {
+            if (ownerGrid[cIdx] === atk.targetOwnerId && isWalkable) {
                 validTargets.push(cIdx);
                 sumFrontX += (cIdx % GRID_W);
                 sumFrontY += Math.floor(cIdx / GRID_W);
@@ -310,180 +316,83 @@ function processActiveAttacks() {
 
         const nextFrontierSet = new Set();
         const processedThisStep = new Set();
-        const touchedFortressesThisStep = new Set();
-
         const isPlayerRush = atk.attackerId === OWNER_PLAYER && typeof buffRushTicks !== 'undefined' && buffRushTicks > 0;
+        const defender = atk.targetOwnerId > 0 ? factions[atk.targetOwnerId] : null;
+
+        let ratio = 1.6;
+        let defTroopsPerPixel = 0;
+
+        if (defender && defender.alive && defender.landCount > 0) {
+            ratio = atk.troops / Math.max(10, defender.troops);
+            defTroopsPerPixel = defender.troops / defender.landCount;
+        }
+        atk.efficiencyRatio = ratio;
+
+        // WENN DU UNTERLEGEN BIST: Deine Welle blutet massiv aus und zieht dem Feind echten Schaden ab!
+        if (defender && defender.alive && defender.troops > 20 && ratio < 0.90) {
+            const heavyAttrition = Math.max(40, atk.troops * 0.25);
+            atk.troops -= heavyAttrition;
+
+            // Der Verteidiger verliert durch den Abwehrkampf ebenfalls Truppen (Verteidigungsboni greifen hier)
+            const defLoss = Math.floor(heavyAttrition * 0.75);
+            defender.troops = Math.max(0, defender.troops - defLoss);
+
+            if (atk.troops < 5) {
+                activeAttacks.splice(i, 1);
+            }
+            continue; // Kein Landgewinn, solange du unterlegen bist!
+        }
+
+        let stepSpeed = atk.targetOwnerId === OWNER_NEUTRAL ? 0.65 : (ratio > 1.8 ? 0.85 : 0.5);
+        if (isPlayerRush) stepSpeed *= 1.8;
+
+        atk.stepAccum = (atk.stepAccum || 0) + stepSpeed;
+        if (atk.stepAccum < 1.0) continue;
+        atk.stepAccum -= 1.0;
 
         for (let j = 0; j < validTargets.length; j++) {
             const targetIdx = validTargets[j];
             if (processedThisStep.has(targetIdx)) continue;
             processedThisStep.add(targetIdx);
 
-            const tx = targetIdx % GRID_W;
-            const ty = Math.floor(targetIdx / GRID_W);
-
-            // ==============================================================
-            // 1. FESTUNGS-SCHUTZ PRÜFEN
-            // ==============================================================
-            let activeShieldFort = null;
-            if (typeof mapPOIs !== 'undefined') {
-                for (let p = 0; p < mapPOIs.length; p++) {
-                    const poi = mapPOIs[p];
-                    if (poi.type === 'garrison_fort' && poi.factionId === atk.targetOwnerId && poi.factionId !== atk.attackerId && poi.garrison > 0) {
-                        const dist = Math.hypot(poi.x - tx, poi.y - ty);
-                        const radius = poi.protectRadius || 26;
-                        if (dist <= radius) {
-                            activeShieldFort = poi;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            // ==============================================================
-            // 2. KAMPF GEGEN FESTUNG (DIREKTER DURCHBRUCH STATT BLOCKADE!)
-            // ==============================================================
-            if (activeShieldFort) {
-                const garrison = activeShieldFort.garrison;
-                // Wir zählen nicht nur den Rest der Welle, sondern auch deine Gesamtarmee im Rücken, wenn du mehr Truppen hast!
-                const totalPower = Math.max(atk.troops, attacker.troops);
-
-                // FALL A: Du hast mehr Truppen als die Festung (z.B. 50k vs 24k) -> SOFORTIGER BRUCH!
-                if (atk.troops > garrison || totalPower > garrison * 1.2) {
-                    const costToBreak = Math.floor(garrison * 0.35);
-                    if (atk.troops >= costToBreak) {
-                        atk.troops -= costToBreak;
-                    } else {
-                        const rest = costToBreak - atk.troops;
-                        atk.troops = Math.max(50, Math.floor(attacker.troops * 0.1));
-                        attacker.troops = Math.max(0, attacker.troops - rest);
-                    }
-
-                    // Festung wechselt sofort den Besitzer!
-                    activeShieldFort.factionId = atk.attackerId;
-                    ownerGrid[activeShieldFort.idx] = atk.attackerId;
-
-                    const conqueror = factions[atk.attackerId];
-                    const cName = conqueror ? conqueror.name : 'Feind';
-                    activeShieldFort.name = `Festung (${cName})`;
-                    activeShieldFort.garrison = Math.min(500, Math.max(25, Math.floor(garrison * 0.10)));
-
-                    addVisualEffect(activeShieldFort.x, activeShieldFort.y, `💥 FESTUNG GEBROCHEN (${cName})!`, '#10b981', '🏰');
-                    if (typeof playSoundCapitalFall === 'function') playSoundCapitalFall();
-                    // KEIN continue! Die Armee nimmt das Feld sofort normal ein und rollt drüber!
-                } 
-                // FALL B: Du greifst wirklich mit weniger Truppen an als in der Festung sitzen
-                else {
-                    if (!touchedFortressesThisStep.has(activeShieldFort.idx)) {
-                        touchedFortressesThisStep.add(activeShieldFort.idx);
-
-                        // Du haust der Festung pro Tick 40% deiner Angriffstruppen rein
-                        const damage = Math.max(50, Math.floor(atk.troops * 0.40));
-                        activeShieldFort.garrison = Math.max(0, activeShieldFort.garrison - damage);
-                        atk.troops = Math.max(0, atk.troops - Math.floor(damage * 0.60));
-
-                        if (activeShieldFort.garrison <= 0) {
-                            activeShieldFort.factionId = atk.attackerId;
-                            ownerGrid[activeShieldFort.idx] = atk.attackerId;
-
-                            const conqueror = factions[atk.attackerId];
-                            const cName = conqueror ? conqueror.name : 'Feind';
-                            activeShieldFort.name = `Festung (${cName})`;
-                            activeShieldFort.garrison = 50;
-
-                            addVisualEffect(activeShieldFort.x, activeShieldFort.y, `🚩 Festung erobert!`, '#f59e0b', '🏰');
-                            if (typeof playSoundCapitalFall === 'function') playSoundCapitalFall();
-                        }
-                    }
-
-                    // Falls sie noch lebt, behältst du das Grenzfeld für den nächsten Tick, statt den Angriff abzubrechen!
-                    if (activeShieldFort.garrison > 0) {
-                        nextFrontierSet.add(targetIdx);
-                        continue;
-                    }
-                }
-            }
-
-            // ==============================================================
-            // 3. NORMALER GELÄNDEKAMPF
-            // ==============================================================
-            let terrainFactor = 1.0 + Math.max(0, elevationGrid[targetIdx]) * 1.6;
-            if (typeof currentSeason !== 'undefined' && currentSeason === 'WINTER') {
-                if (elevationGrid[targetIdx] > 0.25) terrainFactor *= 1.85;
-            }
-            if (typeof currentSeason !== 'undefined' && currentSeason === 'AUTUMN') {
-                terrainFactor *= 1.35;
-            }
-            if (terrainGrid[targetIdx] === TERRAIN_ICE) {
-                terrainFactor = 0.70;
-            }
-
+            let terrainFactor = 1.0 + Math.max(0, elevationGrid[targetIdx]) * 0.8;
             let attackerCost = 0;
-            let defenderDamage = 0;
-            let defender = null;
+            let defenderLossTotal = 0;
             const poiOnField = (typeof mapPOIs !== 'undefined') ? mapPOIs.find(p => p.idx === targetIdx) : null;
 
             if (ownerGrid[targetIdx] === OWNER_NEUTRAL) {
                 attackerCost = baseNeutralCost * terrainFactor;
-                if (poiOnField) attackerCost *= 1.8;
-                if (isPlayerRush) attackerCost *= 0.65;
-                atk.efficiencyRatio = 1.5;
+            } else if (!defender || !defender.alive || defender.troops <= 1) {
+                attackerCost = baseNeutralCost * 0.2 * terrainFactor;
             } else {
-                defender = factions[atk.targetOwnerId];
-
-                if (!defender || !defender.alive || defender.troops <= 1) {
-                    attackerCost = 0.08 * terrainFactor;
-                    defenderDamage = 0;
-                    atk.efficiencyRatio = 2.0;
-                } else {
-                    const atkTroops = Math.max(1, atk.troops);
-                    const defTroops = Math.max(1, defender.troops);
-                    const ratio = atkTroops / defTroops;
-                    atk.efficiencyRatio = ratio;
-
-                    if (ratio < 0.25) {
-                        const defenseWall = (defTroops / atkTroops) * 6.0;
-                        attackerCost = (2.5 + defenseWall) * terrainFactor;
-                        defenderDamage = 0.05 * terrainFactor;
-                    } else if (ratio <= 1.2) {
-                        attackerCost = 4.5 * terrainFactor;
-                        defenderDamage = 1.2 * terrainFactor;
-                    } else {
-                        attackerCost = 1.5 * terrainFactor;
-                        defenderDamage = 2.8 * terrainFactor;
-                    }
-
-                    if (defender.id === OWNER_PLAYER && typeof buffShieldTicks !== 'undefined' && buffShieldTicks > 0) {
-                        attackerCost *= 3.0;
-                        defenderDamage *= 0.35;
-                    }
-
-                    if (atk.attackerId === OWNER_PLAYER && isPlayerRush) {
-                        defenderDamage *= 1.8;
-                        attackerCost *= 0.7;
-                    }
-
-                    if (defender.id === OWNER_PLAYER && typeof upgradeFortLevel !== 'undefined' && upgradeFortLevel > 0) {
-                        const fortBonus = 1.0 + (upgradeFortLevel * 0.25);
-                        defenderDamage /= fortBonus;
-                        attackerCost *= fortBonus;
-                    }
-
-                    if (attacker.id === OWNER_PLAYER && typeof upgradeMercLevel !== 'undefined' && upgradeMercLevel > 0) {
-                        const atkBonus = 1.0 + (upgradeMercLevel * 0.10);
-                        defenderDamage *= atkBonus;
-                        attackerCost /= (1.0 + (upgradeMercLevel * 0.05));
-                    }
+                const baseTileDefense = Math.max(1.0, defTroopsPerPixel);
+                attackerCost = baseTileDefense * (1.1 / ratio) * terrainFactor;
+                
+                // SHOP-BONI DES GEGNERS EINRECHNEN (z.B. Grenzfestungen / Schutz-Level):
+                let defBonusMultiplier = 1.0;
+                if (defender.id === OWNER_PLAYER && typeof upgradeFortLevel !== 'undefined' && upgradeFortLevel > 0) {
+                    defBonusMultiplier += upgradeFortLevel * 0.25; // Shop-Schutz greift hier direkt!
                 }
+                
+                // Exakter direkter Schaden an der Mannstärke des Gegners unter Berücksichtigung des Shop-Bonus
+                defenderLossTotal = (baseTileDefense * ratio * 1.3) / defBonusMultiplier;
             }
+
+            attackerCost = Math.max(2, Math.min(atk.troops * 0.12, attackerCost));
 
             if (atk.troops >= attackerCost) {
                 atk.troops -= attackerCost;
 
+                if (defender && defender.alive) {
+                    // Zieht die Verluste direkt von der Hauptarmee des Gegners ab -> Zahlen im Reich sinken live!
+                    defender.troops = Math.max(0, defender.troops - defenderLossTotal);
+                    defender.landCount = Math.max(0, defender.landCount - 1);
+                }
+
                 if (poiOnField && poiOnField.type === 'capital' && poiOnField.factionId === atk.targetOwnerId) {
                     if (defender && defender.alive) {
-                        const plunder = Math.floor(defender.troops * 0.40);
-                        defender.troops -= plunder;
+                        const plunder = Math.floor(defender.troops * 0.25);
+                        defender.troops = Math.max(0, defender.troops - plunder);
                         attacker.troops += plunder;
 
                         const conqueror = factions[atk.attackerId];
@@ -495,11 +404,6 @@ function processActiveAttacks() {
                         mapPOIs = mapPOIs.filter(p => p !== poiOnField);
                         mapDirty = true;
                     }
-                }
-
-                if (defender && defender.alive && defender.troops > 0) {
-                    defender.troops = Math.max(0, defender.troops - defenderDamage);
-                    defender.landCount = Math.max(0, defender.landCount - 1);
                 }
 
                 ownerGrid[targetIdx] = atk.attackerId;
@@ -518,7 +422,7 @@ function processActiveAttacks() {
                     if (nx >= 0 && nx < GRID_W && ny >= 0 && ny < GRID_H) {
                         const nIdx = ny * GRID_W + nx;
                         const isWalkable = terrainGrid[nIdx] === TERRAIN_LAND || terrainGrid[nIdx] === TERRAIN_ICE;
-                        if ((ownerGrid[nIdx] === atk.targetOwnerId || ownerGrid[nIdx] === OWNER_NEUTRAL) && isWalkable) {
+                        if (ownerGrid[nIdx] === atk.targetOwnerId && isWalkable) {
                             nextFrontierSet.add(nIdx);
                         }
                     }
