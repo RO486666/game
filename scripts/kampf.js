@@ -373,9 +373,9 @@ function processActiveAttacks() {
                     const garrison = activeShieldFort.garrison;
                     const siegeForce = atk.troops;
 
-                    // Fall A: Überrennen (Verhältnis >= 4:1)
-                    if (siegeForce >= garrison * 4.0) {
-                        const attackerLoss = Math.floor(garrison * 1.35);
+                   // Fall A: Überrennen (Verhältnis jetzt ab 2.5:1 statt 4:1, damit 5k vs 900 sofort bricht)
+                    if (siegeForce >= garrison * 2.5) {
+                        const attackerLoss = Math.floor(garrison * 0.45); // Deutlich weniger Eigenverlust bei massiver Übermacht
                         atk.troops = Math.max(0, atk.troops - attackerLoss);
 
                         activeShieldFort.factionId = atk.attackerId;
@@ -385,26 +385,22 @@ function processActiveAttacks() {
                         const cName = conqueror ? conqueror.name : 'Feind';
                         activeShieldFort.name = `Festung (${cName})`;
 
-                        let finalGarrison = Math.max(30, Math.floor(atk.troops * 0.12));
-                        if (Math.random() < 0.35) {
-                            const defectors = Math.floor(garrison * 0.40);
-                            finalGarrison += defectors;
-                            addVisualEffect(activeShieldFort.x, activeShieldFort.y, `🏳️ ${defectors} Mann übergelaufen!`, '#38bdf8', '🤝');
-                        }
-
+                        // Rest-Garnison für den Eroberer hinterlassen
+                        let finalGarrison = Math.max(20, Math.floor(garrison * 0.20));
                         atk.troops = Math.max(0, atk.troops - finalGarrison);
                         activeShieldFort.garrison = finalGarrison;
 
-                        addVisualEffect(activeShieldFort.x, activeShieldFort.y, `⚡ ÜBERRANNT von ${cName}!`, '#10b981', '🏰');
+                        addVisualEffect(activeShieldFort.x, activeShieldFort.y, `⚡ WALL GEBROCHEN von ${cName}!`, '#10b981', '🏰');
                         if (typeof playSoundCapitalFall === 'function') playSoundCapitalFall();
                     } 
-                    // Fall B: Zähe Belagerung / Festung wehrt sich
+                    // Fall B: Zähe Belagerung (Falls die Truppen knapp sind)
                     else {
                         const defAdvantage = garrison > siegeForce ? (garrison / siegeForce) : 1.0;
-                        const siegeLoss = Math.min(garrison, Math.max(50, Math.floor(siegeForce * 0.10)));
+                        // Höherer Schaden an der Festung, wenn die Angreifer massiv in der Überzahl sind
+                        const siegeLoss = Math.max(35, Math.floor(siegeForce * 0.22)); 
                         activeShieldFort.garrison -= siegeLoss;
 
-                        const attackerWallLoss = Math.floor(siegeLoss * (1.8 * Math.min(3.5, defAdvantage)));
+                        const attackerWallLoss = Math.floor(siegeLoss * (1.1 * Math.min(2.0, defAdvantage)));
                         atk.troops = Math.max(0, atk.troops - attackerWallLoss);
 
                         if (activeShieldFort.garrison <= 0) {
@@ -416,12 +412,12 @@ function processActiveAttacks() {
                             const cName = conqueror ? conqueror.name : 'Feind';
                             activeShieldFort.name = `Festung (${cName})`;
 
-                            const seedGarrison = Math.max(30, Math.floor(atk.troops * 0.15));
+                            const seedGarrison = Math.max(20, Math.floor(atk.troops * 0.10));
                             atk.troops = Math.max(0, atk.troops - seedGarrison);
                             activeShieldFort.garrison = seedGarrison;
 
-                            addVisualEffect(activeShieldFort.x, activeShieldFort.y, `🚩 Festung blutig erobert!`, '#f59e0b', '🏰');
-                            if (typeof playSoundCapitalFall === 'function') playSoundCapitalFall();
+                            addVisualEffect(activeShieldFort.x, activeShieldFort.y, `🚩 Festung gestürmt!`, '#f59e0b', '🏰');
+                            if (typeof playSoundCapitalFall === 'function', playSoundCapitalFall());
                         } else {
                             nextFrontierSet.add(activeShieldFort.idx);
                             continue;
