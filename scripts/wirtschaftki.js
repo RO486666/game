@@ -24,18 +24,16 @@ function getUpgradeCost(baseCost, currentLevel) {
 }
 
 function getCapPerPixel() {
-    const sizeScale = (240 * 180) / TOTAL_CELLS;
-    // HIER ERHÖHT: Maximaler Truppen-Multiplikator pro Pixel, damit Armeen größer und stabiler werden
-    return Math.max(35, Math.round(220 * sizeScale));
+    const sizeScale = (650 * 650) / TOTAL_CELLS;
+    return Math.max(3, Math.round(6 * sizeScale));
 }
 
 function getInterestRate(faction) {
     if (!faction || faction.landCount === 0) return 0;
     const maxCap = faction.landCount * getCapPerPixel();
     const ratio = Math.min(1, faction.troops / maxCap);
-    const sizeBonus = faction.landCount < 350 ? 1.6 : 1.1;
-    // HIER ERHÖHT: Deutlich schnelleres organisches Nachwachsen der Mannstärke
-    return Math.max(0.025, 0.14 * (1 - ratio * 0.65) * sizeBonus);
+    const lowTroopBoost = ratio < 0.25 ? 1.5 : 1.0;
+    return Math.max(0.02, 0.11 * (1 - ratio * 0.72) * lowTroopBoost);
 }
 
 function updateWinterIce(freeze) {
@@ -126,16 +124,17 @@ function processGameTick() {
 
     currentCycleTick++;
     const capMult = getCapPerPixel();
-    const incomePerPixel = capMult * 0.035; // HIER ERHÖHT: Schnellerer Nachschub pro Landfläche pro Tick
+    const incomePerPixel = capMult * 0.045;
 
-    // Laufende Zinsen & Truppen-Regeneration (alle 6 Ticks statt 10, damit es flüssiger wächst)
-    if (currentCycleTick % 6 === 0) {
+    // Laufende Zinsen & Truppen-Regeneration (alle 8 Ticks - für alle absolut gleich fair)
+    if (currentCycleTick % 8 === 0) {
         for (let i = 1; i < factions.length; i++) {
             const f = factions[i];
-            if (!f || !f.alive) continue;
+            if (!f || !f.alive || f.landCount === 0) continue;
             const maxCap = f.landCount * capMult;
-            const interest = Math.max(15, f.troops * (getInterestRate(f) * 0.35)); // Mindest-Wachstumsschub
-            f.troops = Math.min(maxCap, f.troops + interest);
+            const baseDraft = Math.max(25, f.landCount * 0.08);
+            const interest = f.troops * (getInterestRate(f) * 0.28);
+            f.troops = Math.min(maxCap, f.troops + baseDraft + interest);
         }
     }
 
@@ -158,14 +157,14 @@ function processGameTick() {
             }
         }
 
-        const seasonGrowthMult = (typeof currentSeason !== 'undefined' && currentSeason === 'SUMMER') ? 1.35 : 1.0;
+        const seasonGrowthMult = (typeof currentSeason !== 'undefined' && currentSeason === 'SUMMER') ? 1.30 : 1.0;
 
         for (let i = 1; i < factions.length; i++) {
             const f = factions[i];
             if (!f || !f.alive) continue;
 
             const maxCap = f.landCount * capMult;
-            const landIncome = f.landCount * incomePerPixel * seasonGrowthMult;
+            const landIncome = Math.max(80, f.landCount * incomePerPixel * seasonGrowthMult);
             f.troops = Math.min(maxCap, f.troops + landIncome);
 
             const landRatio = totalLandCells > 0 ? (f.landCount / totalLandCells) : 0;
@@ -195,7 +194,7 @@ function processGameTick() {
                         playerGold += poi.bonusGold * 2;
                         addVisualEffect(poi.x, poi.y, `+${poi.bonusGold * 2} Gold`, '#fbbf24', '⛏️');
                     } else if (factions[holderId] && factions[holderId].alive) {
-                        const botBonus = Math.floor(120 * (typeof getAiDifficultyMultiplier === 'function' ? getAiDifficultyMultiplier() : 1.0));
+                        const botBonus = Math.floor(80); // Faires festes Einkommen ohne Multiplikator
                         factions[holderId].troops += botBonus;
                     }
                 } else if (poi.type === 'port') {
@@ -209,7 +208,7 @@ function processGameTick() {
         const p = factions[OWNER_PLAYER];
         if (p && p.alive) {
             const taxMultiplier = 1.0 + (upgradeTaxLevel * 0.60);
-            const earnedGold = Math.max(15, Math.floor((p.landCount * 0.22) * taxMultiplier));
+            const earnedGold = Math.max(15, Math.floor((p.landCount * 0.15) * taxMultiplier));
             playerGold += earnedGold;
             saveAccountData();
             updateUI();
@@ -217,10 +216,8 @@ function processGameTick() {
     }
 
     // ==============================================================
-    // BOT-KI: STRATEGIE
+    // BOT-KI: FAIRES, LAUERNDES VERHALTEN (OHNE JEGLICHEN CHEAT)
     // ==============================================================
-    const diffMult = typeof getAiDifficultyMultiplier === 'function' ? getAiDifficultyMultiplier() : 1.0;
-    const powerLevel = typeof getPlayerPowerLevel === 'function' ? getPlayerPowerLevel() : 0;
     const diffSelect = document.getElementById('genAiDifficulty');
     const diffMode = diffSelect ? diffSelect.value : 'normal';
 
@@ -231,69 +228,46 @@ function processGameTick() {
         bot.aiCooldown--;
         if (bot.aiCooldown > 0) continue;
 
-        const baseCooldown = diffMult >= 1.20 ? 4 : 7;
-        bot.aiCooldown = Math.floor(Math.random() * baseCooldown) + 3;
+        const scanDelay = diffMode === 'impossible' ? 4 : (diffMode === 'hard' ? 6 : 9);
+        bot.aiCooldown = Math.floor(Math.random() * scanDelay) + 3;
 
         const maxCap = bot.landCount * capMult;
         const capRatio = maxCap > 0 ? bot.troops / maxCap : 0;
-
-        if (diffMult > 1.0 && powerLevel > 0) {
-            const scalingBonus = bot.troops * (0.003 * diffMult * Math.min(3.0, 1 + powerLevel * 0.05));
-            bot.troops = Math.min(maxCap, bot.troops + scalingBonus);
-        }
 
         const alreadyAttacking = activeAttacks.some(a => a.attackerId === bot.id) || 
             (typeof activeFleets !== 'undefined' && activeFleets.some(f => f.attackerId === bot.id));
         
         if (alreadyAttacking && capRatio < 0.85) continue;
 
-        const evaluateTargetSafety = (targetFactionId) => {
-            const enemy = factions[targetFactionId];
-            if (!enemy || !enemy.alive) return { safe: true, effectiveTroops: 1 };
-            const minRatio = bot.archetype === 'berserker' ? 0.85 : 1.25;
-            const isSafe = (bot.troops * 0.50) >= (enemy.troops * 0.40 * minRatio) || capRatio > 0.90;
-            return { safe: isSafe, effectiveTroops: enemy.troops };
-        };
-
-        if (bot.hasNeutralNeighbor && bot.troops > 60) {
-            if (bot.archetype === 'expander' || capRatio > 0.45 || bot.troops > 200) {
-                const expandPct = bot.archetype === 'berserker' ? 0.35 : 0.22;
-                initiateAttack(bot.id, OWNER_NEUTRAL, expandPct);
+        // 1. Neutrale Expansion (Sichert sich freies Land)
+        if (bot.hasNeutralNeighbor && bot.troops > 150) {
+            if (bot.troops > 300 || capRatio > 0.40) {
+                initiateAttack(bot.id, OWNER_NEUTRAL, 0.22);
                 continue;
             }
         }
 
-        let poiTargetOwner = null;
-        if (typeof mapPOIs !== 'undefined' && Math.random() < 0.40) {
-            for (const poi of mapPOIs) {
-                const pOwner = ownerGrid[poi.idx];
-                if (pOwner !== bot.id && (pOwner === OWNER_NEUTRAL || bot.neighbors.has(pOwner))) {
-                    if (pOwner > 0 && !evaluateTargetSafety(pOwner).safe) continue;
-
-                    const distToCentroid = Math.hypot(poi.x - bot.centroidX, poi.y - bot.centroidY);
-                    if (distToCentroid < GRID_W * 0.30) {
-                        poiTargetOwner = pOwner;
-                        break;
-                    }
-                }
-            }
-        }
-
-        if (poiTargetOwner !== null && bot.troops > 120) {
-            initiateAttack(bot.id, poiTargetOwner, 0.30);
-            continue;
-        }
-
+        // 2. Taktisches Lauern: Greift nur an, wenn der Feind geschwächt ist oder sie im Vorteil sind
         let targetCandidate = null;
-        let lowestDefPower = Infinity;
+        let bestOpportunityScore = -Infinity;
 
         for (const nId of bot.neighbors) {
             if (nId <= 0) continue;
-            const check = evaluateTargetSafety(nId);
-            if (!check.safe) continue;
+            const enemy = factions[nId];
+            if (!enemy || !enemy.alive) continue;
 
-            if (check.effectiveTroops < lowestDefPower) {
-                lowestDefPower = check.effectiveTroops;
+            const enemyWars = activeAttacks.filter(a => a.attackerId === enemy.id || a.targetOwnerId === enemy.id).length;
+            const troopAdvantage = bot.troops - enemy.troops;
+            let opportunityScore = troopAdvantage + (enemyWars * 12000);
+
+            if (diffMode === 'hard' || diffMode === 'impossible') {
+                if (bot.troops >= enemy.troops * 0.90) {
+                    opportunityScore += 40000;
+                }
+            }
+
+            if (opportunityScore > bestOpportunityScore) {
+                bestOpportunityScore = opportunityScore;
                 targetCandidate = nId;
             }
         }
@@ -301,13 +275,9 @@ function processGameTick() {
         if (targetCandidate) {
             const enemy = factions[targetCandidate];
             if (enemy && enemy.alive) {
-                const isBerserker = bot.archetype === 'berserker';
-                const requiredRatio = diffMode === 'impossible' ? 0.95 : (isBerserker ? 1.05 : 1.25);
-                const isOverCap = capRatio >= 0.80;
-
-                if ((bot.troops > lowestDefPower * requiredRatio) || isOverCap) {
-                    const attackPct = isBerserker ? 0.45 : (isOverCap ? 0.35 : 0.25);
-                    initiateAttack(bot.id, enemy.id, attackPct);
+                const strikeForce = bot.troops > 500 ? 0.40 : 0.25;
+                if (bot.troops >= enemy.troops * 0.85 || capRatio >= 0.75) {
+                    initiateAttack(bot.id, enemy.id, strikeForce);
                 }
             }
         }
