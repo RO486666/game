@@ -1,5 +1,5 @@
 /***********************************************************************
- * 7. HD-RENDERING, FRONT-FEEDBACK & UI-STEUERUNG (KOMPLETT & SAUBER)
+ * 7. HD-RENDERING, FRONT-FEEDBACK & UI-STEUERUNG (OPTIMIERT & SAUBER)
  ***********************************************************************/
 function updateMapPixelBuffer() {
     for (let idx = 0; idx < TOTAL_CELLS; idx++) {
@@ -506,7 +506,7 @@ function updateUI() {
 }
 
 /***********************************************************************
- * 9. KAMERA & GESTEN
+ * 9. KAMERA & GESTEN (MIT DOPPEL-KLICK-SCHUTZ FÜR HANDYS)
  ***********************************************************************/
 function resizeViewportCanvas() {
     dpr = Math.min(window.devicePixelRatio || 1, 2.5);
@@ -589,9 +589,11 @@ let startX = 0;
 let startY = 0;
 let movedDist = 0;
 let lastPinchDist = null;
+let touchProcessedTime = 0; // Schützt vor doppelten Touch-/Mausklick-Events auf dem Handy
 
 canvas.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
+    if (Date.now() - touchProcessedTime < 400) return;
     pointerDown = true;
     targetCamX = null;
     startX = e.clientX;
@@ -616,6 +618,7 @@ window.addEventListener('mouseup', (e) => {
     if (!pointerDown) return;
     pointerDown = false;
     if (movedDist < 8) {
+        if (Date.now() - touchProcessedTime < 400) return;
         handleCanvasTap(e.clientX, e.clientY);
     }
 });
@@ -688,7 +691,8 @@ canvas.addEventListener('touchmove', (e) => {
 }, { passive: true });
 
 canvas.addEventListener('touchend', (e) => {
-    if (pointerDown && e.changedTouches.length > 0 && movedDist < 11) {
+    if (pointerDown && e.changedTouches.length > 0 && movedDist < 12) {
+        touchProcessedTime = Date.now(); // Blockiert direkt nachfolgende simulierte Klicks
         handleCanvasTap(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
     }
     if (e.touches.length === 0) {
