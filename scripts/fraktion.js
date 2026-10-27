@@ -1,5 +1,5 @@
 /***********************************************************************
- * 4. FRAKTIONEN & SCHLACHT-START (HAUPTSTÄDTE STARTEN REGULÄR)
+ * 4. FRAKTIONEN & SCHLACHT-START (INTELLIGENTE & FAIRE KI)
  ***********************************************************************/
 
 function getPlayerPowerLevel() {
@@ -9,16 +9,17 @@ function getPlayerPowerLevel() {
     return (merc + fort + tax) / 3;
 }
 
-function getAiDifficultyMultiplier() {
+// KEINE PRODUKTIONS-BONI MEHR! Nur noch minimale Taktik-Boni für Verteidigung auf höheren Stufen.
+function getAiDifficultyDefenseBonus() {
     const diffSelect = document.getElementById('genAiDifficulty');
     const diffMode = diffSelect ? diffSelect.value : 'normal';
 
     switch (diffMode) {
-        case 'easy':       return 0.45;
-        case 'normal':     return 0.85;
-        case 'hard':       return 1.20;
-        case 'impossible': return 1.65;
-        default:           return 0.85;
+        case 'easy':       return 0.90; // Leichter Malus für die KI
+        case 'normal':     return 1.00; // Fair Play (1:1)
+        case 'hard':       return 1.10; // +10% Taktischer Verteidigungs-Bonus (wie von dir vorgeschlagen)
+        case 'impossible': return 1.20; // +20% Taktischer Verteidigungs-Bonus
+        default:           return 1.00;
     }
 }
 
@@ -29,31 +30,24 @@ function createFaction(id, name, colorRGB, isBot) {
     const archetypes = ['berserker', 'hoarder', 'expander', 'balanced'];
     const chosenArch = archetypes[Math.floor(Math.random() * archetypes.length)];
 
-    let aggroFactor = 0.25;
-    let targetCapThreshold = 0.70;
+    let aggroFactor = 0.35;
+    let targetCapThreshold = 0.65;
 
     if (diffMode === 'easy') {
-        aggroFactor = 0.45;
-        targetCapThreshold = 0.85;
+        aggroFactor = 0.55;
+        targetCapThreshold = 0.80;
     } else if (diffMode === 'hard') {
-        aggroFactor = 0.18;
-        targetCapThreshold = 0.55;
+        aggroFactor = 0.22; // Wartet länger, lauert auf Fehler
+        targetCapThreshold = 0.50;
     } else if (diffMode === 'impossible') {
-        aggroFactor = 0.08;
-        targetCapThreshold = 0.40;
+        aggroFactor = 0.12; // Äußerst geduldig, schlägt erbarmungslos zu
+        targetCapThreshold = 0.35;
     }
 
-    const powerLevel = getPlayerPowerLevel();
-    const diffMult = getAiDifficultyMultiplier();
-
     let startingTroops = 600;
-
     if (!isBot) {
         const merc = typeof upgradeMercLevel !== 'undefined' ? upgradeMercLevel : 0;
         startingTroops = Math.floor(600 * (1 + merc * 0.15));
-    } else {
-        const botBonusFactor = (powerLevel * 0.12) * diffMult;
-        startingTroops = Math.floor(600 * (1 + botBonusFactor));
     }
 
     return {
@@ -70,7 +64,7 @@ function createFaction(id, name, colorRGB, isBot) {
         centroidY: 0,
         neighbors: new Set(),
         hasNeutralNeighbor: true,
-        aiCooldown: Math.floor(Math.random() * 7) + 3,
+        aiCooldown: Math.floor(Math.random() * 6) + 3,
         archetype: chosenArch,
         aggroThreshold: aggroFactor,
         capTrigger: targetCapThreshold,
@@ -112,7 +106,6 @@ function launchBattleFromSelectedSpawn() {
     factions = [null];
     activeAttacks = [];
 
-    // Vorherige POIs bereinigen (nur Minen & Häfen behalten)
     if (typeof mapPOIs !== 'undefined') {
         mapPOIs = mapPOIs.filter(p => p.type !== 'capital' && p.type !== 'garrison_fort');
     } else {
@@ -127,7 +120,6 @@ function launchBattleFromSelectedSpawn() {
     factions.push(playerFaction);
     claimStartingCircle(OWNER_PLAYER, gridX, gridY, startRadius);
 
-    // Spieler-Hauptstadt (startet als reguläres 'capital')
     mapPOIs.push({
         type: 'capital',
         factionId: OWNER_PLAYER,
@@ -161,7 +153,6 @@ function launchBattleFromSelectedSpawn() {
             factions.push(botFaction);
             claimStartingCircle(botId, bestPos.x, bestPos.y, Math.max(4, startRadius - 1));
 
-           // Bot-Hauptstadt mit eindeutigem Stadt-Icon (kein Burg-Icon mehr)
             mapPOIs.push({
                 type: 'capital',
                 factionId: botId,
@@ -239,12 +230,10 @@ function launchBattleFromSelectedSpawn() {
     updateUI();
 }
 
-
 function relocateCapital(factionId) {
     const f = factions[factionId];
     if (!f || !f.alive || f.landCount === 0) return;
 
-    // Suche die Landzelle der Fraktion, die am nächsten zum aktuellen Schwerpunkt liegt
     const targetX = Math.round(f.centroidX);
     const targetY = Math.round(f.centroidY);
     let bestIdx = -1;
@@ -268,13 +257,11 @@ function relocateCapital(factionId) {
         const nx = bestIdx % GRID_W;
         const ny = Math.floor(bestIdx / GRID_W);
 
-        // Falls es der Spieler ist, die Ursprungskoordinate für die Namensanzeige versetzen
         if (factionId === OWNER_PLAYER) {
             playerOriginX = nx;
             playerOriginY = ny;
         }
 
-        // Alten Hauptstadt-POI dieser Fraktion entfernen
         if (typeof mapPOIs !== 'undefined') {
             mapPOIs = mapPOIs.filter(p => !(p.type === 'capital' && p.factionId === factionId));
             
