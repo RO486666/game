@@ -1,5 +1,5 @@
 /***********************************************************************
- * 7. HD-RENDERING, FRONT-FEEDBACK & UI-STEUERUNG (OPTIMIERT & OPTISCH SCHÖNER)
+ * 7. HD-RENDERING, FRONT-FEEDBACK & UI-STEUERUNG (KOMPLETT & SAUBER)
  ***********************************************************************/
 function updateMapPixelBuffer() {
     for (let idx = 0; idx < TOTAL_CELLS; idx++) {
@@ -13,9 +13,8 @@ function updateMapPixelBuffer() {
             const isPlayer = owner === OWNER_PLAYER;
 
             if (borderMask[idx] === 1) {
-                // SCHÖNER AUSSENBEGRENZUNG: Feine, elegante Kontur statt grober Blöcke
                 if (isPlayer) {
-                    pixelBuffer[idx] = packRGBA(255, 250, 200); // Edler Gold-/Weißton für den Spieler
+                    pixelBuffer[idx] = packRGBA(255, 250, 200);
                 } else {
                     pixelBuffer[idx] = packRGBA(
                         Math.max(10, (rgb[0] * 30) >> 8),
@@ -68,16 +67,15 @@ function renderFrame(now) {
     ctx.imageSmoothingEnabled = camZoom < 1.35;
     ctx.drawImage(mapCanvas, 0, 0);
 
-    // Berechnen des sichtbaren Bildschirm-Bereichs (View-Frustum Culling gegen Lag)
     const halfW = (viewW / 2) / camZoom;
     const halfH = (viewH / 2) / camZoom;
-    const minVisibleX = camX - halfW - 20;
-    const maxVisibleX = camX + halfW + 20;
-    const minVisibleY = camY - halfH - 20;
-    const maxVisibleY = camY + halfH + 20;
+    const minVisibleX = camX - halfW - 30;
+    const maxVisibleX = camX + halfW + 30;
+    const minVisibleY = camY - halfH - 30;
+    const maxVisibleY = camY + halfH + 30;
 
     // ==========================================
-    // SPAWN-PHASE: BOT-SPAWNS & EIGENER PUNKT
+    // SPAWN-PHASE
     // ==========================================
     if (appPhase === 'SPAWN') {
         if (window.previewBotSpawns && window.previewBotSpawns.length > 0) {
@@ -147,7 +145,7 @@ function renderFrame(now) {
     }
 
     // ==========================================
-    // STRATEGISCHE KNOTENPUNKTE (HAUPTSTÄDTE, MINEN, HÄFEN)
+    // STRATEGISCHE KNOTENPUNKTE (POIs)
     // ==========================================
     if (typeof mapPOIs !== 'undefined' && mapPOIs.length > 0) {
         for (const poi of mapPOIs) {
@@ -186,7 +184,7 @@ function renderFrame(now) {
     }
 
     // ==========================================
-    // FRONT-FEEDBACK: FUNKEN & BALKEN (NUR WENN NAH GENUG GEZOOMT)
+    // FRONT-FEEDBACK & BALKEN
     // ==========================================
     if (appPhase === 'PLAYING' && typeof activeAttacks !== 'undefined' && activeAttacks.length > 0) {
         const renderFrontDetails = camZoom > 0.52;
@@ -261,7 +259,9 @@ function renderFrame(now) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    // Fraktionen / Truppenlabels (Werden automatisch ausgeblendet, wenn außerhalb oder zu klein)
+    // ==========================================
+    // FRAKTIONEN & TRUPPENLABELS
+    // ==========================================
     for (let i = 1; i < factions.length; i++) {
         const f = factions[i];
         if (!f || !f.alive || f.landCount < 6) continue;
@@ -307,7 +307,9 @@ function renderFrame(now) {
         ctx.fillText(troopStr, cx, cy + fontSize * 0.58);
     }
 
-    // Schiffsflotten (nur wenn im Bild)
+    // ==========================================
+    // SCHIFFSFLOTTEN
+    // ==========================================
     if (typeof activeFleets !== 'undefined') {
         for (const fleet of activeFleets) {
             if (fleet.currX < minVisibleX || fleet.currX > maxVisibleX || fleet.currY < minVisibleY || fleet.currY > maxVisibleY) continue;
@@ -334,7 +336,9 @@ function renderFrame(now) {
         }
     }
 
-    // Visuelle Effekte / Pings (nur im sichtbaren Ausschnitt)
+    // ==========================================
+    // VISUELLE EFFEKTE
+    // ==========================================
     for (let i = visualEffects.length - 1; i >= 0; i--) {
         const eff = visualEffects[i];
         if (eff.x < minVisibleX || eff.x > maxVisibleX || eff.y < minVisibleY || eff.y > maxVisibleY) {
