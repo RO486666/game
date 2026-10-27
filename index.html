@@ -27,11 +27,9 @@
             color: #f8fafc;
             touch-action: none;
             -webkit-font-smoothing: antialiased;
-            /* Verhindert das "Bouncen" und Verschieben auf mobilen Browsern */
             position: fixed;
         }
 
-        /* Hardware-beschleunigter Haupt-Canvas mit strikter Layout-Isolation */
         #gameCanvas {
             display: block;
             width: 100%;
@@ -42,7 +40,6 @@
             backface-visibility: hidden;
         }
 
-        /* WICHTIG: Mobiler oberer Bereich berücksichtigt die Notch / Statusleiste */
         #gameHud {
             padding-top: env(safe-area-inset-top, 10px);
             padding-left: env(safe-area-inset-left, 10px);
@@ -54,7 +51,7 @@
         }
 
         .glass-card {
-            background: rgba(11, 19, 35, 0.94);
+            background: rgba(11, 19, 35, 0.96);
             border: 1px solid rgba(255, 255, 255, 0.12);
             box-shadow: 0 16px 40px rgba(0, 0, 0, 0.85);
             contain: content;
@@ -70,18 +67,6 @@
         .mono-num {
             font-family: 'JetBrains Mono', monospace;
             font-variant-numeric: tabular-nums;
-        }
-
-        .custom-scroll::-webkit-scrollbar {
-            width: 4px;
-        }
-        .custom-scroll::-webkit-scrollbar-track {
-            background: rgba(15, 23, 42, 0.4);
-            border-radius: 8px;
-        }
-        .custom-scroll::-webkit-scrollbar-thumb {
-            background: rgba(56, 189, 248, 0.45);
-            border-radius: 8px;
         }
 
         input[type=range].attack-slider {
@@ -116,25 +101,25 @@
             -webkit-appearance: none;
             width: 100%;
             background: transparent;
-            height: 18px;
+            height: 14px;
         }
         input[type=range].gen-slider::-webkit-slider-runnable-track {
             width: 100%;
-            height: 6px;
+            height: 5px;
             cursor: pointer;
             background: #1e293b;
             border-radius: 999px;
             border: 1px solid rgba(148, 163, 184, 0.25);
         }
         input[type=range].gen-slider::-webkit-slider-thumb {
-            height: 16px;
-            width: 16px;
+            height: 14px;
+            width: 14px;
             border-radius: 50%;
             background: #38bdf8;
             cursor: pointer;
             -webkit-appearance: none;
             margin-top: -5px;
-            box-shadow: 0 1px 6px rgba(0,0,0,0.8), 0 0 0 2px #ffffff;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.8), 0 0 0 2px #ffffff;
         }
 
         @keyframes pop-in {
@@ -152,287 +137,177 @@
     <!-- Hauptansicht -->
     <canvas id="gameCanvas"></canvas>
 
-    <!-- PHASE 1: HAUPTMENÜ -->
-    <div id="menuScreen" class="fixed inset-0 z-30 flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/75 backdrop-blur-sm">
-        <div class="glass-card w-full max-w-md max-h-[96vh] flex flex-col rounded-3xl border border-slate-700/80 animate-pop overflow-hidden">
+    <!-- PHASE 1: HAUPTMENÜ (VOLLSTÄNDIG KOMPAKT FÜRS HANDY OHNE SCROLLEN) -->
+    <div id="menuScreen" class="fixed inset-0 z-30 flex items-center justify-center p-2 bg-slate-950/80 backdrop-blur-sm">
+        <div class="glass-card w-full max-w-md h-[95vh] max-h-[620px] flex flex-col rounded-3xl border border-slate-700/80 animate-pop overflow-hidden">
 
-            <!-- Kopfzeile mit Gold & Info -->
-            <div class="px-4 pt-3 pb-2.5 border-b border-slate-800/90 flex items-center justify-between shrink-0">
+            <!-- Kopfzeile -->
+            <div class="px-3.5 pt-3 pb-2 border-b border-slate-800/90 flex items-center justify-between shrink-0">
                 <div>
-                    <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-sky-500/20 border border-sky-400/30 text-sky-300 text-[10px] font-extrabold uppercase tracking-wider">
+                    <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-500/20 border border-sky-400/30 text-sky-300 text-[9px] font-extrabold uppercase tracking-wider">
                         ✨ Tactical Strategy
                     </div>
-                    <h1 class="text-xl sm:text-2xl font-black tracking-tight text-white leading-tight mt-0.5">TERRITORIAL <span class="text-sky-400">HD</span></h1>
+                    <h1 class="text-lg font-black tracking-tight text-white leading-tight mt-0.5">TERRITORIAL <span class="text-sky-400">HD</span></h1>
                 </div>
-                <div class="flex flex-col items-end gap-1">
-                    <div class="flex items-center gap-1.5 bg-amber-500/20 border border-amber-400/40 px-2.5 py-1 rounded-xl">
-                        <span class="text-xs">💰</span>
-                        <span id="menuGoldBadge" class="mono-num text-xs font-black text-amber-300">0</span>
-                    </div>
-                    <div id="menuResBadge" class="mono-num text-[10px] font-bold text-slate-400">650×650 px</div>
+                <div class="flex items-center gap-1.5 bg-amber-500/20 border border-amber-400/40 px-2.5 py-1 rounded-xl">
+                    <span class="text-xs">💰</span>
+                    <span id="menuGoldBadge" class="mono-num text-xs font-black text-amber-300">0</span>
                 </div>
             </div>
 
             <!-- Tab-Leiste -->
-            <div class="grid grid-cols-3 gap-1.5 px-3 pt-2 pb-1.5 bg-slate-950/50 border-b border-slate-800/80 shrink-0">
-                <button id="tabBtnPlay" onclick="switchTab('tabPanelPlay', this)" class="menu-tab-btn py-2 rounded-xl text-xs font-black border transition bg-sky-500/25 text-sky-300 border-sky-400/50 flex items-center justify-center gap-1.5">
-                    <span>🎮</span><span>Start & Welt</span>
+            <div class="grid grid-cols-3 gap-1 px-3 py-1.5 bg-slate-950/50 border-b border-slate-800/80 shrink-0">
+                <button id="tabBtnPlay" onclick="switchTab('tabPanelPlay', this)" class="menu-tab-btn py-1.5 rounded-xl text-[11px] font-black border transition bg-sky-500/25 text-sky-300 border-sky-400/50 flex items-center justify-center gap-1">
+                    <span>🎮</span><span>Welt</span>
                 </button>
-                <button id="tabBtnShop" onclick="switchTab('tabPanelShop', this)" class="menu-tab-btn py-2 rounded-xl text-xs font-black border transition bg-slate-900/60 text-slate-400 border-slate-800 flex items-center justify-center gap-1.5">
+                <button id="tabBtnShop" onclick="switchTab('tabPanelShop', this)" class="menu-tab-btn py-1.5 rounded-xl text-[11px] font-black border transition bg-slate-900/60 text-slate-400 border-slate-800 flex items-center justify-center gap-1">
                     <span>🛒</span><span>Shop</span>
                 </button>
-                <button id="tabBtnPlayer" onclick="switchTab('tabPanelPlayer', this)" class="menu-tab-btn py-2 rounded-xl text-xs font-black border transition bg-slate-900/60 text-slate-400 border-slate-800 flex items-center justify-center gap-1.5">
+                <button id="tabBtnPlayer" onclick="switchTab('tabPanelPlayer', this)" class="menu-tab-btn py-1.5 rounded-xl text-[11px] font-black border transition bg-slate-900/60 text-slate-400 border-slate-800 flex items-center justify-center gap-1">
                     <span>👑</span><span>Profil</span>
                 </button>
             </div>
 
-            <!-- Scrollbarer Inhalt -->
-            <div class="px-3.5 py-3 overflow-y-auto custom-scroll flex-1 space-y-3">
+            <!-- Inhaltspaneele (Fixiert, kein Scrollen nötig) -->
+            <div class="p-3 flex-1 flex flex-col justify-between overflow-hidden">
                 
                 <!-- TAB 1: START & WELT -->
-                <div id="tabPanelPlay" class="menu-tab-panel space-y-2.5">
+                <div id="tabPanelPlay" class="menu-tab-panel flex flex-col justify-between h-full space-y-2">
                     
-                    <!-- Vorschau & Seed-Panel -->
-                    <div class="flex gap-3 items-center bg-slate-900/60 p-2.5 rounded-2xl border border-slate-800">
-                        <div class="relative w-28 h-24 sm:w-32 sm:h-24 rounded-xl overflow-hidden border-2 border-sky-500/40 shadow-inner bg-slate-950 shrink-0">
+                    <!-- Vorschau & Seed -->
+                    <div class="flex gap-2.5 items-center bg-slate-900/60 p-2 rounded-2xl border border-slate-800 shrink-0">
+                        <div class="relative w-20 h-20 rounded-xl overflow-hidden border border-sky-500/40 bg-slate-950 shrink-0">
                             <canvas id="previewCanvas" class="w-full h-full object-cover block"></canvas>
-                            <div class="absolute bottom-1 right-1 bg-slate-950/80 text-[8px] mono-num font-bold text-sky-300 px-1 py-0.5 rounded border border-slate-700">
-                                VORSCHAU
-                            </div>
                         </div>
-
-                        <div class="flex-1 min-w-0 space-y-2">
-                            <div>
-                                <label class="block text-[10px] font-extrabold uppercase text-slate-400 mb-1">Seed & Zufall</label>
-                                <div class="flex gap-1.5">
-                                    <input id="genSeedInput" type="text" value="849204" maxlength="12"
-                                        class="mono-num w-full bg-slate-950 text-sky-300 font-bold text-xs px-2.5 py-1.5 rounded-xl border border-slate-700 focus:outline-none focus:border-sky-400">
-                                    <button id="randomSeedBtn" class="bg-sky-500/20 hover:bg-sky-500/30 active:scale-95 text-sky-300 border border-sky-400/40 font-bold px-2.5 py-1.5 rounded-xl text-xs shrink-0">
-                                        🎲
-                                    </button>
-                                </div>
+                        <div class="flex-1 min-w-0 space-y-1">
+                            <label class="block text-[9px] font-extrabold uppercase text-slate-400">Welt-Seed</label>
+                            <div class="flex gap-1">
+                                <input id="genSeedInput" type="text" value="849204" maxlength="12"
+                                    class="mono-num w-full bg-slate-950 text-sky-300 font-bold text-xs px-2 py-1 rounded-xl border border-slate-700 focus:outline-none">
+                                <button id="randomSeedBtn" class="bg-sky-500/25 text-sky-300 border border-sky-400/40 font-bold px-2 py-1 rounded-xl text-xs shrink-0">🎲</button>
                             </div>
-
-                            <div>
-                                <label class="block text-[10px] font-extrabold uppercase text-slate-400 mb-1">Gelände-Modus</label>
-                                <select id="menuMapType" class="w-full bg-slate-950 text-white text-xs font-bold px-2 py-1.5 rounded-xl border border-slate-700 focus:outline-none">
-    <!-- Klassisch & Natürlich -->
-    <option value="with_water">🌊 Klassische Kontinente & Meere</option>
-    <option value="archipelago">🏝️ Archipel (Tausend Inseln & Seewege)</option>
-    <option value="pangea">🌍 Pangaea (Einziger Riesenkontinent)</option>
-    <option value="ring_world">🍩 Ring-Welt & Binnenmeer</option>
-    <option value="shattered">⚡ Zersplitterte Reiche (Extreme Engpässe)</option>
-    <option value="no_water">🟢 Nur Festland (Kein Ozean)</option>
-
-    <!-- Taktisch & Geometrisch -->
-    <option value="four_corners">🔲 Vier Großreiche (Eck-Spawns & Zentraler Kampf)</option>
-    <option value="twin_continents">👥 Zwei Zwillings-Kontinente (Ozean-Krieg)</option>
-    <option value="spiral_galaxy">🌀 Spiral-Galaxie (Gedrehte Landarme)</option>
-    <option value="snake_world">🐍 Schlangen-Welt (Lange, schmale Landbrücke)</option>
-    <option value="crossroads">❌ Kreuzweg (Zentraler Engpass mit 4 Fronten)</option>
-    <option value="crescent_moon">🌙 Sichelmond & Innensee</option>
-
-    <!-- Historisch & Geografisch nachempfunden -->
-    <option value="mediterranean">🏛️ Mittelmeer-Becken (Europa, Afrika & Naher Osten)</option>
-    <option value="british_isles">🇬🇧 Die Britischen Inseln & Nordsee</option>
-    <option value="scandinavia">❄️ Skandinavische Fjorde & Ostsee</option>
-    <option value="southeast_asia">🌏 Südostasiatisches Inselmeer (Indonesien/Philippinen)</option>
-    <option value="caribbean">🏴‍☠️ Karibisches Archipel (Piratennester)</option>
-    <option value="japan_archipelago">🗾 Japanischer Bogen & Küstenstreifen</option>
-
-    <!-- Hardcore & Extrem -->
-    <option value="atoll_chain">💍 Atoll-Kette (Nur winzige Küsten-Inseln)</option>
-    <option value="labyrinth">🧱 Das Labyrinth (Extreme Berg- und Fluss-Barrieren)</option>
-    <option value="panthalassa">💧 Wasserwelt (90% Ozean, mühsame See-Invasionen)</option>
-    <option value="vertical_wall">🧗 Vertikale Mauer (Norden vs. Süden durch riesiges Gebirge)</option>
-    <option value="peninsula_clash">🗡️ Halbinsel-Krieg (Stark umkämpfte Landzungen)</option>
-    <option value="volcanic_cluster">🌋 Vulkan-Cluster (Enge, gefährliche Zonen)</option>
-    <option value="hyper_chaos">🎲 Hyper-Chaos (Zufalls-Tektonik Maximum)</option>
-    <option value="the_pit">🕳️ Die Grube (Riesiger Ozean im Zentrum, Ring-Land außen)</option>
-</select>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Auflösung & Bot-Anzahl -->
-                    <div class="grid grid-cols-2 gap-2">
-                        <div class="bg-slate-900/70 p-2 rounded-xl border border-slate-800">
-                            <div class="text-[10px] font-bold text-slate-300 mb-1">📐 AUFLÖSUNG</div>
-                            <select id="genMapSize" class="w-full bg-slate-950 text-emerald-300 font-extrabold text-xs px-2 py-1.5 rounded-lg border border-slate-700 focus:outline-none">
-                                <option value="450">Kompakt (450 px)</option>
-                                <option value="650" selected>Groß HD (650 px)</option>
-                                <option value="900">Riesig Ultra (900 px)</option>
-                                <option value="1200">Episch Gigant (1200 px)</option>
+                            <select id="menuMapType" class="w-full bg-slate-950 text-white text-[11px] font-bold px-2 py-1 rounded-xl border border-slate-700 focus:outline-none">
+                                <option value="with_water">🌊 Klassische Kontinente & Meere</option>
+                                <option value="archipelago">🏝️ Archipel (Tausend Inseln)</option>
+                                <option value="pangea">🌍 Pangaea (Riesenkontinent)</option>
+                                <option value="four_corners">🔲 Vier Großreiche</option>
+                                <option value="mediterranean">🏛️ Mittelmeer-Becken</option>
+                                <option value="no_water">🟢 Nur Festland</option>
                             </select>
                         </div>
+                    </div>
 
-                        <div class="bg-slate-900/70 p-2 rounded-xl border border-slate-800">
-                            <div class="flex justify-between items-center text-[10px] font-bold text-slate-300 mb-1">
-                                <span>🤖 BOT-ANZAHL</span>
+                    <!-- Einstellungen (Größe, Bots, KI) -->
+                    <div class="grid grid-cols-3 gap-1.5 shrink-0">
+                        <div class="bg-slate-900/70 p-1.5 rounded-xl border border-slate-800">
+                            <div class="text-[9px] font-bold text-slate-300">AUFLÖSUNG</div>
+                            <select id="genMapSize" class="w-full bg-slate-950 text-emerald-300 font-extrabold text-[11px] px-1 py-1 rounded-lg border border-slate-700 mt-0.5">
+                                <option value="450">Kompakt</option>
+                                <option value="650" selected>Groß HD</option>
+                                <option value="900">Ultra</option>
+                            </select>
+                        </div>
+                        <div class="bg-slate-900/70 p-1.5 rounded-xl border border-slate-800">
+                            <div class="flex justify-between text-[9px] font-bold text-slate-300">
+                                <span>BOTS</span>
                                 <span id="valBotCount" class="mono-num text-amber-400 font-extrabold">32</span>
                             </div>
-                            <input id="genBotCount" type="range" min="10" max="75" step="1" value="32" class="gen-slider mt-1">
+                            <input id="genBotCount" type="range" min="10" max="60" step="1" value="32" class="gen-slider mt-1">
+                        </div>
+                        <div class="bg-slate-900/70 p-1.5 rounded-xl border border-slate-800">
+                            <div class="text-[9px] font-bold text-slate-300">KI-STUFE</div>
+                            <select id="genAiDifficulty" class="w-full bg-slate-950 text-sky-300 font-extrabold text-[11px] px-1 py-1 rounded-lg border border-slate-700 mt-0.5">
+                                <option value="easy">Leicht</option>
+                                <option value="normal" selected>Normal</option>
+                                <option value="hard">Schwer</option>
+                                <option value="impossible">Unaufhaltsam</option>
+                            </select>
                         </div>
                     </div>
 
-                    <!-- KI-Schwierigkeit -->
-                    <div class="bg-slate-900/70 p-2.5 rounded-xl border border-slate-800">
-                        <div class="text-[10px] font-bold text-slate-300 mb-1">🤖 KI-SCHWIERIGKEIT</div>
-                        <select id="genAiDifficulty" class="w-full bg-slate-950 text-sky-300 font-extrabold text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 focus:outline-none">
-                            <option value="easy">🟢 Leicht (Passiv)</option>
-                            <option value="normal" selected>🟡 Normal (Ausgewogen)</option>
-                            <option value="hard">🔴 Schwer (Aggressiv)</option>
-                            <option value="impossible">💀 Unaufhaltsam (Hardcore)</option>
-                        </select>
-                    </div>
-
-                    <!-- 10 PROZEDURALE WELTGENERATOR-REGLER -->
-                    <div class="grid grid-cols-2 gap-2 text-[11px]">
-                        <div class="bg-slate-900/70 p-2.5 rounded-xl border border-slate-800">
-                            <div class="flex justify-between font-bold mb-1">
+                    <!-- Kompakte Weltgenerator-Regler (2x3 Grid) -->
+                    <div class="grid grid-cols-2 gap-1.5 text-[10px] shrink-0">
+                        <div class="bg-slate-900/70 p-2 rounded-xl border border-slate-800">
+                            <div class="flex justify-between font-bold mb-0.5">
                                 <span class="text-slate-300">🌊 Meeresspiegel</span>
                                 <span id="valWaterLevel" class="mono-num text-sky-400">48%</span>
                             </div>
                             <input id="genWaterLevel" type="range" min="5" max="85" value="48" class="gen-slider">
                         </div>
-
-                        <div class="bg-slate-900/70 p-2.5 rounded-xl border border-slate-800">
-                            <div class="flex justify-between font-bold mb-1">
-                                <span class="text-slate-300">🌐 Kontinent-Typ</span>
-                                <span id="valContinentScale" class="mono-num text-sky-400">Kontinente</span>
-                            </div>
-                            <input id="genContinentScale" type="range" min="15" max="100" value="55" class="gen-slider">
-                        </div>
-
-                        <div class="bg-slate-900/70 p-2.5 rounded-xl border border-slate-800">
-                            <div class="flex justify-between font-bold mb-1">
-                                <span class="text-slate-300">🪐 Platten-Kerne</span>
-                                <span id="valPlateCount" class="mono-num text-emerald-400">5 Kerne</span>
-                            </div>
-                            <input id="genPlateCount" type="range" min="1" max="10" step="1" value="5" class="gen-slider">
-                        </div>
-
-                        <div class="bg-slate-900/70 p-2.5 rounded-xl border border-slate-800">
-                            <div class="flex justify-between font-bold mb-1">
-                                <span class="text-slate-300">🌪️ Verwerfung</span>
-                                <span id="valWarpIntensity" class="mono-num text-purple-400">Mittel</span>
-                            </div>
-                            <input id="genWarpIntensity" type="range" min="0" max="100" value="50" class="gen-slider">
-                        </div>
-
-                        <div class="bg-slate-900/70 p-2.5 rounded-xl border border-slate-800">
-                            <div class="flex justify-between font-bold mb-1">
-                                <span class="text-slate-300">⚡ Küstendetail</span>
-                                <span id="valCoastDetail" class="mono-num text-sky-400">5 Okt.</span>
-                            </div>
-                            <input id="genCoastDetail" type="range" min="2" max="7" step="1" value="5" class="gen-slider">
-                        </div>
-
-                        <div class="bg-slate-900/70 p-2.5 rounded-xl border border-slate-800">
-                            <div class="flex justify-between font-bold mb-1">
-                                <span class="text-slate-300">🏝️ Inselketten</span>
-                                <span id="valIslands" class="mono-num text-teal-400">Moderat</span>
-                            </div>
-                            <input id="genIslands" type="range" min="0" max="100" value="45" class="gen-slider">
-                        </div>
-
-                        <div class="bg-slate-900/70 p-2.5 rounded-xl border border-slate-800">
-                            <div class="flex justify-between font-bold mb-1">
+                        <div class="bg-slate-900/70 p-2 rounded-xl border border-slate-800">
+                            <div class="flex justify-between font-bold mb-0.5">
                                 <span class="text-slate-300">🏔️ Gebirge</span>
-                                <span id="valMountains" class="mono-num text-amber-300">Alpin</span>
+                                <span id="valMountains" class="mono-num text-amber-300">50%</span>
                             </div>
                             <input id="genMountains" type="range" min="0" max="100" value="50" class="gen-slider">
                         </div>
-
-                        <div class="bg-slate-900/70 p-2.5 rounded-xl border border-slate-800">
-                            <div class="flex justify-between font-bold mb-1">
-                                <span class="text-slate-300">🌊 Fluss-Systeme</span>
-                                <span id="valRivers" class="mono-num text-cyan-400">Normal</span>
+                        <div class="bg-slate-900/70 p-2 rounded-xl border border-slate-800">
+                            <div class="flex justify-between font-bold mb-0.5">
+                                <span class="text-slate-300">🏝️ Inseln</span>
+                                <span id="valIslands" class="mono-num text-teal-400">45%</span>
                             </div>
-                            <input id="genRivers" type="range" min="0" max="100" value="40" class="gen-slider">
+                            <input id="genIslands" type="range" min="0" max="100" value="45" class="gen-slider">
                         </div>
-
-                        <div class="bg-slate-900/70 p-2.5 rounded-xl border border-slate-800">
-                            <div class="flex justify-between font-bold mb-1">
-                                <span class="text-slate-300">🌡️ Temperatur</span>
-                                <span id="valTemperature" class="mono-num text-rose-400">Gemäßigt</span>
+                        <div class="bg-slate-900/70 p-2 rounded-xl border border-slate-800">
+                            <div class="flex justify-between font-bold mb-0.5">
+                                <span class="text-slate-300">🪐 Platten-Kerne</span>
+                                <span id="valPlateCount" class="mono-num text-emerald-400">5</span>
                             </div>
-                            <input id="genTemperature" type="range" min="-50" max="50" value="0" class="gen-slider">
-                        </div>
-
-                        <div class="bg-slate-900/70 p-2.5 rounded-xl border border-slate-800">
-                            <div class="flex justify-between font-bold mb-1">
-                                <span class="text-slate-300">💧 Feuchtigkeit</span>
-                                <span id="valMoisture" class="mono-num text-emerald-300">Ausgeglichen</span>
-                            </div>
-                            <input id="genMoisture" type="range" min="-50" max="50" value="0" class="gen-slider">
+                            <input id="genPlateCount" type="range" min="1" max="10" step="1" value="5" class="gen-slider">
                         </div>
                     </div>
                 </div>
 
                 <!-- TAB 2: SHOP -->
                 <div id="tabPanelShop" class="menu-tab-panel hidden space-y-2.5">
-                    <div class="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between">
-                        <div>
-                            <div class="text-[10px] font-bold uppercase text-amber-300">Schatzkammer</div>
-                            <div class="text-xs text-slate-300">Einkommen durch kontrolliertes Land</div>
-                        </div>
-                        <div class="mono-num text-lg font-black text-amber-400">💰 <span id="shopTreasuryCount">0</span></div>
+                    <div class="p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between">
+                        <div class="text-xs text-amber-300 font-bold">Schatzkammer Guthaben</div>
+                        <div class="mono-num text-base font-black text-amber-400">💰 <span id="shopTreasuryCount">0</span></div>
                     </div>
 
                     <div class="space-y-2">
-                        <div class="bg-slate-900/70 p-3 rounded-2xl border border-slate-800 flex items-center justify-between gap-2">
+                        <div class="bg-slate-900/70 p-2.5 rounded-2xl border border-slate-800 flex items-center justify-between gap-2">
                             <div>
                                 <div class="font-extrabold text-white text-xs">⚔️ Söldner-Division</div>
-                                <div id="subMercBonus" class="text-[10px] text-emerald-400 font-bold mono-num">+15% Sofort-Truppen (Aktuell: +0%)</div>
+                                <div id="subMercBonus" class="text-[10px] text-emerald-400 font-bold mono-num">+15% Truppen (Aktuell: +0%)</div>
                             </div>
-                            <button id="menuBuyMercBtn" class="bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black px-3 py-1.5 rounded-xl text-xs mono-num shrink-0">
-                                100 💰
-                            </button>
+                            <button id="menuBuyMercBtn" class="bg-emerald-500 text-slate-950 font-black px-3 py-1.5 rounded-xl text-xs mono-num shrink-0">100 💰</button>
                         </div>
-
-                        <div class="bg-slate-900/70 p-3 rounded-2xl border border-slate-800 flex items-center justify-between gap-2">
+                        <div class="bg-slate-900/70 p-2.5 rounded-2xl border border-slate-800 flex items-center justify-between gap-2">
                             <div>
                                 <div class="font-extrabold text-white text-xs">🛡️ Grenzfestungen</div>
                                 <div id="subFortBonus" class="text-[10px] text-amber-400 font-bold mono-num">+25% Schutz (Aktuell: +0%)</div>
                             </div>
-                            <button id="menuBuyFortBtn" class="bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black px-3 py-1.5 rounded-xl text-xs mono-num shrink-0">
-                                250 💰
-                            </button>
+                            <button id="menuBuyFortBtn" class="bg-amber-500 text-slate-950 font-black px-3 py-1.5 rounded-xl text-xs mono-num shrink-0">250 💰</button>
                         </div>
-
-                        <div class="bg-slate-900/70 p-3 rounded-2xl border border-slate-800 flex items-center justify-between gap-2">
+                        <div class="bg-slate-900/70 p-2.5 rounded-2xl border border-slate-800 flex items-center justify-between gap-2">
                             <div>
                                 <div class="font-extrabold text-white text-xs">🏛️ Steuereintreiber</div>
                                 <div id="subTaxBonus" class="text-[10px] text-sky-400 font-bold mono-num">+50% Gold (Aktuell: +0%)</div>
                             </div>
-                            <button id="menuBuyTaxBtn" class="bg-sky-500 hover:bg-sky-400 active:scale-95 text-slate-950 font-black px-3 py-1.5 rounded-xl text-xs mono-num shrink-0">
-                                400 💰
-                            </button>
+                            <button id="menuBuyTaxBtn" class="bg-sky-500 text-slate-950 font-black px-3 py-1.5 rounded-xl text-xs mono-num shrink-0">400 💰</button>
                         </div>
                     </div>
                 </div>
 
                 <!-- TAB 3: PROFIL -->
-                <div id="tabPanelPlayer" class="menu-tab-panel hidden space-y-4 pt-1">
-                    <div class="bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800 space-y-2">
-                        <label class="block text-xs font-extrabold uppercase tracking-wider text-slate-300">Dein Reichsname</label>
+                <div id="tabPanelPlayer" class="menu-tab-panel hidden space-y-3">
+                    <div class="bg-slate-900/70 p-3 rounded-2xl border border-slate-800 space-y-1.5">
+                        <label class="block text-[10px] font-extrabold uppercase tracking-wider text-slate-300">Dein Reichsname</label>
                         <input id="menuPlayerName" type="text" value="Kaiserreich" maxlength="16"
-                            class="w-full bg-slate-950 text-white font-bold text-sm px-3.5 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-sky-400 transition"
-                            placeholder="Reichsname eingeben...">
+                            class="w-full bg-slate-950 text-white font-bold text-xs px-3 py-2 rounded-xl border border-slate-700 focus:outline-none">
                     </div>
-
-                    <div class="bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800 space-y-2.5">
-                        <label class="block text-xs font-extrabold uppercase tracking-wider text-slate-300">Wappenfarbe auf der Karte</label>
-                        <div id="colorPickerGrid" class="grid grid-cols-6 gap-2"></div>
+                    <div class="bg-slate-900/70 p-3 rounded-2xl border border-slate-800 space-y-1.5">
+                        <label class="block text-[10px] font-extrabold uppercase tracking-wider text-slate-300">Wappenfarbe</label>
+                        <div id="colorPickerGrid" class="grid grid-cols-6 gap-1.5"></div>
                     </div>
                 </div>
 
             </div>
 
             <!-- Start-Button -->
-            <div class="p-3.5 bg-slate-950/80 border-t border-slate-800/90 shrink-0">
-                <button id="goToSpawnBtn" class="w-full bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 active:scale-[0.98] text-slate-950 font-black text-sm sm:text-base py-3.5 rounded-2xl shadow-xl shadow-emerald-500/20 transition flex items-center justify-center gap-2">
+            <div class="p-2.5 bg-slate-950/80 border-t border-slate-800/90 shrink-0">
+                <button id="goToSpawnBtn" class="w-full bg-gradient-to-r from-emerald-500 to-green-600 active:scale-[0.98] text-slate-950 font-black text-xs sm:text-sm py-3 rounded-xl shadow-xl flex items-center justify-center gap-2">
                     <span>📍 STARTPUNKT WÄHLEN & KÄMPFEN</span>
                 </button>
             </div>
@@ -441,21 +316,21 @@
 
     <!-- PHASE 2: SPAWN-AUSWAHL -->
     <div id="spawnScreen" class="fixed inset-0 z-20 pointer-events-none hidden flex-col justify-between p-3 pb-7">
-        <div class="pointer-events-auto mx-auto w-full max-w-md glass-card rounded-2xl px-3.5 py-2.5 border border-sky-400/50 flex items-center justify-between gap-2">
-            <div class="flex items-center gap-2.5 min-w-0">
-                <span class="text-xl shrink-0">📍</span>
+        <div class="pointer-events-auto mx-auto w-full max-w-md glass-card rounded-2xl px-3 py-2 border border-sky-400/50 flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+                <span class="text-lg shrink-0">📍</span>
                 <div class="truncate">
-                    <div class="text-xs sm:text-sm font-extrabold text-sky-300 leading-tight">Tippe auf grünes Land!</div>
-                    <div id="spawnCoordHint" class="text-[11px] text-slate-300 truncate">Zoomen mit 2 Fingern • Ziehen zum Bewegen</div>
+                    <div class="text-xs font-extrabold text-sky-300 leading-tight">Tippe auf grünes Land!</div>
+                    <div id="spawnCoordHint" class="text-[10px] text-slate-300 truncate">Zoomen mit 2 Fingern • Ziehen</div>
                 </div>
             </div>
-            <div class="flex items-center gap-1.5 shrink-0">
-                <button id="spawnRerollBtn" class="bg-slate-800 hover:bg-slate-700 active:scale-95 text-sky-300 text-xs font-bold px-2.5 py-1.5 rounded-xl border border-slate-600" title="Neue Zufallskarte">🎲</button>
-                <button id="backToMenuBtn" class="bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-600">Menü</button>
+            <div class="flex items-center gap-1 shrink-0">
+                <button id="spawnRerollBtn" class="bg-slate-800 text-sky-300 text-xs font-bold px-2 py-1 rounded-lg border border-slate-600">🎲</button>
+                <button id="backToMenuBtn" class="bg-slate-800 text-slate-200 text-xs font-bold px-2 py-1 rounded-lg border border-slate-600">Menü</button>
             </div>
         </div>
-        <div class="pointer-events-auto mx-auto w-full max-w-md flex flex-col gap-2">
-            <button id="confirmSpawnBtn" disabled class="w-full py-3.5 px-5 rounded-2xl font-black text-sm sm:text-base shadow-2xl transition flex items-center justify-center gap-2 bg-slate-800/90 text-slate-400 border border-slate-700 cursor-not-allowed">
+        <div class="pointer-events-auto mx-auto w-full max-w-md">
+            <button id="confirmSpawnBtn" disabled class="w-full py-3 px-4 rounded-2xl font-black text-xs sm:text-sm shadow-2xl transition flex items-center justify-center gap-2 bg-slate-800/90 text-slate-400 border border-slate-700 cursor-not-allowed">
                 <span id="confirmSpawnText">👆 TIPPE AUF LAND FÜR DEINEN STARTPUNKT</span>
             </button>
         </div>
@@ -463,123 +338,111 @@
 
     <!-- PHASE 3: GAME HUD -->
     <div id="gameHud" class="fixed inset-0 z-20 pointer-events-none hidden flex-col justify-between">
-        <div class="p-2 sm:p-3 pointer-events-none">
+        <div class="p-2 pointer-events-none">
             <div class="pointer-events-auto mx-auto w-full max-w-2xl glass-card rounded-2xl overflow-hidden border border-slate-600/70">
-                <div class="px-3 py-2 flex items-center justify-between gap-2">
+                <div class="px-2.5 py-1.5 flex items-center justify-between gap-1.5">
                     
-                    <div class="flex items-center gap-2 min-w-0">
-                        <span id="hudPlayerDot" class="w-3.5 h-3.5 rounded-full shrink-0 ring-2 ring-white/60"></span>
+                    <div class="flex items-center gap-1.5 min-w-0">
+                        <span id="hudPlayerDot" class="w-3 h-3 rounded-full shrink-0 ring-2 ring-white/60"></span>
                         <div>
-                            <div class="flex items-baseline gap-1.5">
-                                <span id="hudTroops" class="mono-num text-base sm:text-lg font-black text-white leading-none">550</span>
-                                <span id="hudIncome" class="mono-num text-[11px] font-bold text-emerald-400">+0</span>
+                            <div class="flex items-baseline gap-1">
+                                <span id="hudTroops" class="mono-num text-sm sm:text-base font-black text-white leading-none">550</span>
+                                <span id="hudIncome" class="mono-num text-[10px] font-bold text-emerald-400">+0</span>
                             </div>
-                            <div class="text-[10px] text-slate-400 leading-tight truncate">
+                            <div class="text-[9px] text-slate-400 leading-tight truncate">
                                 Max: <span id="hudMaxCap" class="mono-num text-slate-300">0</span>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Status-Badges inkl. Wetter und Stabilität -->
-                    <div class="flex items-center gap-1.5 shrink-0 overflow-x-auto custom-scroll py-0.5">
-                        <div class="bg-slate-900/80 border border-slate-700/70 rounded-lg px-2 py-1 text-center shrink-0">
-                            <div class="text-[9px] uppercase text-slate-400 leading-none">Wetter</div>
-                            <div id="hudSeason" class="mono-num text-xs font-extrabold text-sky-400 mt-0.5">🌸 Frühling</div>
+                    <!-- Status-Badges -->
+                    <div class="flex items-center gap-1 shrink-0 overflow-x-auto py-0.5">
+                        <div class="bg-slate-900/80 border border-slate-700/70 rounded-md px-1.5 py-0.5 text-center shrink-0">
+                            <div class="text-[8px] uppercase text-slate-400 leading-none">Wetter</div>
+                            <div id="hudSeason" class="mono-num text-[11px] font-extrabold text-sky-400">🌸</div>
                         </div>
-                        <div class="bg-slate-900/80 border border-slate-700/70 rounded-lg px-2 py-1 text-center shrink-0">
-                            <div class="text-[9px] uppercase text-slate-400 leading-none">Ordnung</div>
-                            <div id="hudStability" class="mono-num text-xs font-extrabold text-emerald-400 mt-0.5">100%</div>
+                        <div class="bg-slate-900/80 border border-slate-700/70 rounded-md px-1.5 py-0.5 text-center shrink-0">
+                            <div class="text-[8px] uppercase text-slate-400 leading-none">Ordnung</div>
+                            <div id="hudStability" class="mono-num text-[11px] font-extrabold text-emerald-400">100%</div>
                         </div>
-                        <div class="bg-slate-900/80 border border-amber-500/50 rounded-lg px-2 py-1 text-center shrink-0">
-                            <div class="text-[9px] uppercase text-amber-300 leading-none">Gold</div>
-                            <div id="hudGold" class="mono-num text-xs font-extrabold text-amber-400 mt-0.5">💰 0</div>
+                        <div class="bg-slate-900/80 border border-amber-500/50 rounded-md px-1.5 py-0.5 text-center shrink-0">
+                            <div class="text-[8px] uppercase text-amber-300 leading-none">Gold</div>
+                            <div id="hudGold" class="mono-num text-[11px] font-extrabold text-amber-400">💰 0</div>
                         </div>
-                        <div class="bg-slate-900/80 border border-slate-700/70 rounded-lg px-2 py-1 text-center shrink-0">
-                            <div class="text-[9px] uppercase text-slate-400 leading-none">Fläche</div>
-                            <div id="hudLandPct" class="mono-num text-xs font-extrabold text-sky-400 mt-0.5">0.0%</div>
-                        </div>
-                        <div class="bg-slate-900/80 border border-slate-700/70 rounded-lg px-2 py-1 text-center shrink-0">
-                            <div class="text-[9px] uppercase text-slate-400 leading-none">Zins</div>
-                            <div id="hudInterest" class="mono-num text-xs font-extrabold text-amber-400 mt-0.5">7.0%</div>
+                        <div class="bg-slate-900/80 border border-slate-700/70 rounded-md px-1.5 py-0.5 text-center shrink-0">
+                            <div class="text-[8px] uppercase text-slate-400 leading-none">Fläche</div>
+                            <div id="hudLandPct" class="mono-num text-[11px] font-extrabold text-sky-400">0%</div>
                         </div>
                     </div>
 
                     <div class="flex items-center gap-1 shrink-0">
-                        <button id="hudShopBtn" class="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/50 rounded-xl px-2.5 py-1.5 text-xs font-bold active:scale-95" title="Gefechts-Unterstützung">🛒</button>
-                        <button id="hudSpeedBtn" class="bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-600 rounded-xl px-2 py-1.5 text-xs font-extrabold mono-num">1x</button>
-                        <button id="hudLeaderboardBtn" class="bg-slate-800 hover:bg-slate-700 active:scale-95 text-amber-300 border border-slate-600 rounded-xl px-2 py-1.5 text-xs font-bold">🏆</button>
-                        <button id="hudMenuBtn" class="bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-600 rounded-xl px-2.5 py-1.5 text-xs font-bold" title="Hauptmenü">⚙️</button>
+                        <button id="hudShopBtn" class="bg-amber-500/20 text-amber-300 border border-amber-400/50 rounded-xl px-2 py-1 text-xs font-bold">🛒</button>
+                        <button id="hudLeaderboardBtn" class="bg-slate-800 text-amber-300 border border-slate-600 rounded-xl px-2 py-1 text-xs font-bold">🏆</button>
+                        <button id="hudMenuBtn" class="bg-slate-800 text-slate-200 border border-slate-600 rounded-xl px-2 py-1 text-xs font-bold">⚙️</button>
                     </div>
                 </div>
 
-                <div class="w-full bg-slate-900 h-1.5 overflow-hidden">
-                    <div id="hudCycleBar" class="bg-gradient-to-r from-sky-400 to-emerald-400 h-full w-0 transition-none"></div>
+                <div class="w-full bg-slate-900 h-1 overflow-hidden">
+                    <div id="hudCycleBar" class="bg-gradient-to-r from-sky-400 to-emerald-400 h-full w-0"></div>
                 </div>
             </div>
 
             <!-- Leaderboard Drawer -->
-            <div id="leaderboardDrawer" class="pointer-events-auto hidden mt-2 ml-auto w-64 glass-card rounded-2xl p-3 border border-slate-600/80 animate-pop">
-                <div class="flex items-center justify-between border-b border-slate-700/80 pb-1.5 mb-2">
-                    <span class="text-[11px] font-extrabold uppercase tracking-wider text-amber-300">🏆 Mächtigste Reiche</span>
-                    <button id="closeLeaderboardBtn" class="text-xs text-slate-400 hover:text-white px-1 font-bold">✕</button>
+            <div id="leaderboardDrawer" class="pointer-events-auto hidden mt-2 ml-auto w-64 glass-card rounded-2xl p-2.5 border border-slate-600/80 animate-pop">
+                <div class="flex items-center justify-between border-b border-slate-700/80 pb-1 mb-1.5">
+                    <span class="text-[10px] font-extrabold uppercase text-amber-300">🏆 Mächtigste Reiche</span>
+                    <button id="closeLeaderboardBtn" class="text-xs text-slate-400 font-bold">✕</button>
                 </div>
-                <div id="leaderboardContent" class="space-y-1 text-xs max-h-52 overflow-y-auto custom-scroll"></div>
+                <div id="leaderboardContent" class="space-y-1 text-xs max-h-40 overflow-y-auto"></div>
             </div>
 
-            <!-- INGAME GEFECHTS-SHOP DRAWER (OHNE FESTUNG) -->
-            <div id="shopDrawer" class="pointer-events-auto hidden mt-2 ml-auto w-72 glass-card rounded-2xl p-3 border border-amber-500/60 animate-pop">
-                <div class="flex items-center justify-between border-b border-slate-700/80 pb-1.5 mb-2.5">
-                    <span class="text-[11px] font-extrabold uppercase tracking-wider text-amber-300">⚡ Gefechts-Unterstützung</span>
-                    <button id="closeShopBtn" class="text-xs text-slate-400 hover:text-white px-1 font-bold">✕</button>
+            <!-- Ingame Shop Drawer -->
+            <div id="shopDrawer" class="pointer-events-auto hidden mt-2 ml-auto w-64 glass-card rounded-2xl p-2.5 border border-amber-500/60 animate-pop">
+                <div class="flex items-center justify-between border-b border-slate-700/80 pb-1 mb-1.5">
+                    <span class="text-[10px] font-extrabold uppercase text-amber-300">⚡ Gefechts-Unterstützung</span>
+                    <button id="closeShopBtn" class="text-xs text-slate-400 font-bold">✕</button>
                 </div>
-                <div class="space-y-2 text-xs">
-                    <div class="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between gap-2">
+                <div class="space-y-1.5 text-xs">
+                    <div class="bg-slate-900/80 p-2 rounded-xl border border-slate-800 flex items-center justify-between gap-2">
                         <div>
-                            <div class="font-extrabold text-white text-xs">⚡ Sturmangriff</div>
-                            <div class="text-[10px] text-slate-400">2.5x Front-Tempo (15s)</div>
+                            <div class="font-extrabold text-white text-[11px]">⚡ Sturmangriff</div>
+                            <div class="text-[9px] text-slate-400">2.5x Tempo (15s)</div>
                         </div>
-                        <button id="btnTacticalRush" class="bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black px-2.5 py-1.5 rounded-lg text-[11px] mono-num shrink-0">
-                            120 💰
-                        </button>
+                        <button id="btnTacticalRush" class="bg-emerald-500 text-slate-950 font-black px-2 py-1 rounded-lg text-[10px] mono-num">120 💰</button>
                     </div>
-
-                    <div class="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between gap-2">
+                    <div class="bg-slate-900/80 p-2 rounded-xl border border-slate-800 flex items-center justify-between gap-2">
                         <div>
-                            <div class="font-extrabold text-white text-xs">🛡️ Abwehrriegel</div>
-                            <div class="text-[10px] text-slate-400">3x Verteidigung (20s)</div>
+                            <div class="font-extrabold text-white text-[11px]">🛡️ Abwehrriegel</div>
+                            <div class="text-[9px] text-slate-400">3x Schutz (20s)</div>
                         </div>
-                        <button id="btnTacticalShield" class="bg-sky-500 hover:bg-sky-400 active:scale-95 text-slate-950 font-black px-2.5 py-1.5 rounded-lg text-[11px] mono-num shrink-0">
-                            180 💰
-                        </button>
+                        <button id="btnTacticalShield" class="bg-sky-500 text-slate-950 font-black px-2 py-1 rounded-lg text-[10px] mono-num">180 💰</button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="fixed right-3 bottom-36 z-20 pointer-events-auto flex flex-col gap-2">
-            <button id="focusPlayerBtn" class="glass-card hover:bg-slate-800 active:scale-90 w-11 h-11 rounded-2xl flex items-center justify-center text-lg shadow-xl border border-amber-400/50" title="Zu meinem Reich springen">👑</button>
-            <button id="zoomInBtn" class="glass-card hover:bg-slate-800 active:scale-90 w-11 h-11 rounded-2xl flex items-center justify-center text-base font-black shadow-xl border border-slate-600/70" title="Näher heranzoomen">➕</button>
-            <button id="zoomOutBtn" class="glass-card hover:bg-slate-800 active:scale-90 w-11 h-11 rounded-2xl flex items-center justify-center text-lg shadow-xl border border-slate-600/70" title="Ganze Karte überblicken">🗺️</button>
+        <div class="fixed right-2.5 bottom-28 z-20 pointer-events-auto flex flex-col gap-1.5">
+            <button id="focusPlayerBtn" class="glass-card w-10 h-10 rounded-xl flex items-center justify-center text-base shadow-xl border border-amber-400/50">👑</button>
+            <button id="zoomInBtn" class="glass-card w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black shadow-xl border border-slate-600/70">➕</button>
+            <button id="zoomOutBtn" class="glass-card w-10 h-10 rounded-xl flex items-center justify-center text-base shadow-xl border border-slate-600/70">🗺️</button>
         </div>
 
-        <div class="p-2.5 pb-6 sm:pb-4 pointer-events-none">
-            <div class="pointer-events-auto mx-auto w-full max-w-md glass-card rounded-2xl p-3 border border-slate-600/80">
+        <div class="p-2 pb-5 pointer-events-none">
+            <div class="pointer-events-auto mx-auto w-full max-w-md glass-card rounded-2xl p-2.5 border border-slate-600/80">
                 <div class="flex items-center justify-between text-xs mb-1">
-                    <div class="flex items-center gap-1.5">
-                        <span class="font-extrabold uppercase tracking-wider text-slate-300">⚔️ Einsatz:</span>
-                        <span id="hudSliderPct" class="mono-num font-black text-amber-400 text-sm">30%</span>
+                    <div class="flex items-center gap-1">
+                        <span class="font-extrabold uppercase text-slate-300">⚔️ Einsatz:</span>
+                        <span id="hudSliderPct" class="mono-num font-black text-amber-400">30%</span>
                         <span class="text-slate-400">(<span id="hudSliderTroops" class="mono-num font-bold text-white">165</span>)</span>
                     </div>
-                    <span class="text-[11px] text-sky-300 font-semibold">Tippe auf Nachbarn / Territorium</span>
+                    <span class="text-[10px] text-sky-300">Tippe auf Nachbarn</span>
                 </div>
-
-                <input id="hudAttackSlider" type="range" min="5" max="100" value="30" class="attack-slider mb-1.5">
-
-                <div class="grid grid-cols-4 gap-1.5 text-xs font-extrabold">
-                    <button data-pct="15" class="pct-pill bg-slate-800/90 active:scale-95 text-emerald-300 border border-slate-600/80 rounded-xl py-1.5">15%</button>
-                    <button data-pct="30" class="pct-pill bg-slate-700 active:scale-95 text-amber-300 border border-amber-400/60 rounded-xl py-1.5">30%</button>
-                    <button data-pct="55" class="pct-pill bg-slate-800/90 active:scale-95 text-orange-300 border border-slate-600/80 rounded-xl py-1.5">55%</button>
-                    <button data-pct="100" class="pct-pill bg-rose-950/90 active:scale-95 text-rose-200 border border-rose-500/50 rounded-xl py-1.5">100%</button>
+                <input id="hudAttackSlider" type="range" min="5" max="100" value="30" class="attack-slider mb-1">
+                <div class="grid grid-cols-4 gap-1 text-[11px] font-extrabold">
+                    <button data-pct="15" class="pct-pill bg-slate-800 text-emerald-300 border border-slate-600 rounded-lg py-1">15%</button>
+                    <button data-pct="30" class="pct-pill bg-slate-700 text-amber-300 border border-amber-400 rounded-lg py-1">30%</button>
+                    <button data-pct="55" class="pct-pill bg-slate-800 text-orange-300 border border-slate-600 rounded-lg py-1">55%</button>
+                    <button data-pct="100" class="pct-pill bg-rose-950 text-rose-200 border border-rose-500 rounded-lg py-1">100%</button>
                 </div>
             </div>
         </div>
@@ -587,28 +450,28 @@
 
     <!-- PHASE 4: END MODAL -->
     <div id="endModal" class="fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center p-4">
-        <div class="glass-card rounded-3xl p-6 max-w-sm w-full text-center border-2 border-slate-600 animate-pop">
-            <div id="endModalIcon" class="text-5xl mb-2">👑</div>
-            <h2 id="endModalTitle" class="text-2xl font-black text-white mb-1">WELTHERRSCHAFT!</h2>
-            <p id="endModalDesc" class="text-xs text-slate-300 mb-5">Du hast alle rivalisierenden Reiche unterworfen!</p>
-            <div class="grid grid-cols-2 gap-2.5 mb-5 text-left bg-slate-900/80 p-3 rounded-2xl border border-slate-700">
+        <div class="glass-card rounded-3xl p-5 max-w-sm w-full text-center border-2 border-slate-600 animate-pop">
+            <div id="endModalIcon" class="text-4xl mb-1">👑</div>
+            <h2 id="endModalTitle" class="text-xl font-black text-white mb-0.5">WELTHERRSCHAFT!</h2>
+            <p id="endModalDesc" class="text-xs text-slate-300 mb-4">Du hast alle rivalisierenden Reiche unterworfen!</p>
+            <div class="grid grid-cols-2 gap-2 mb-4 text-left bg-slate-900/80 p-2.5 rounded-xl border border-slate-700 text-xs">
                 <div>
-                    <div class="text-[10px] text-slate-400 uppercase">Erobertes Land</div>
-                    <div id="endModalLand" class="mono-num text-base font-extrabold text-emerald-400">100%</div>
+                    <div class="text-[9px] text-slate-400 uppercase">Erobertes Land</div>
+                    <div id="endModalLand" class="mono-num font-extrabold text-emerald-400">100%</div>
                 </div>
                 <div>
-                    <div class="text-[10px] text-slate-400 uppercase">Überlebte Zyklen</div>
-                    <div id="endModalCycles" class="mono-num text-base font-extrabold text-sky-400">20</div>
+                    <div class="text-[9px] text-slate-400 uppercase">Zyklen</div>
+                    <div id="endModalCycles" class="mono-num font-extrabold text-sky-400">20</div>
                 </div>
             </div>
             <div class="flex flex-col gap-2">
-                <button id="modalNewGameBtn" class="w-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-black py-3 rounded-2xl shadow-lg transition">🔄 Neues Spiel im Menü</button>
-                <button id="modalSpectateBtn" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl text-xs transition">👀 Weiter zuschauen</button>
+                <button id="modalNewGameBtn" class="w-full bg-sky-500 text-slate-950 font-black py-2.5 rounded-xl text-xs transition">🔄 Neues Spiel im Menü</button>
+                <button id="modalSpectateBtn" class="w-full bg-slate-800 text-slate-300 font-bold py-2 rounded-xl text-xs transition">👀 Weiter zuschauen</button>
             </div>
         </div>
     </div>
 
-    <!-- TAB-SWITCHER DIREKT INLINE -->
+    <!-- TAB-SWITCHER -->
     <script>
         function switchTab(panelId, btnElement) {
             document.querySelectorAll('.menu-tab-panel').forEach(p => p.classList.add('hidden'));
@@ -616,9 +479,9 @@
             if (target) target.classList.remove('hidden');
 
             document.querySelectorAll('.menu-tab-btn').forEach(b => {
-                b.className = 'menu-tab-btn py-2 rounded-xl text-xs font-black border transition bg-slate-900/60 text-slate-400 border-slate-800 flex items-center justify-center gap-1.5';
+                b.className = 'menu-tab-btn py-1.5 rounded-xl text-[11px] font-black border transition bg-slate-900/60 text-slate-400 border-slate-800 flex items-center justify-center gap-1';
             });
-            btnElement.className = 'menu-tab-btn py-2 rounded-xl text-xs font-black border transition bg-sky-500/25 text-sky-300 border-sky-400/50 flex items-center justify-center gap-1.5';
+            btnElement.className = 'menu-tab-btn py-1.5 rounded-xl text-[11px] font-black border transition bg-sky-500/25 text-sky-300 border-sky-400/50 flex items-center justify-center gap-1';
 
             if (panelId === 'tabPanelPlayer' && typeof initColorPicker === 'function') {
                 initColorPicker();
