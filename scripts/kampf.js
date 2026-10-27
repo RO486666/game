@@ -373,9 +373,9 @@ function processActiveAttacks() {
                     const garrison = activeShieldFort.garrison;
                     const siegeForce = atk.troops;
 
-                   // Fall A: Überrennen (Verhältnis jetzt ab 2.5:1 statt 4:1, damit 5k vs 900 sofort bricht)
-                    if (siegeForce >= garrison * 2.5) {
-                        const attackerLoss = Math.floor(garrison * 0.45); // Deutlich weniger Eigenverlust bei massiver Übermacht
+                   // Fall A: Überrennen (Massiver Overkill bei 100k vs. kleine Garnison)
+                    if (siegeForce >= garrison * 1.5 || siegeForce > 20000) {
+                        const attackerLoss = Math.floor(garrison * 0.15); // Minimaler Verlust für dich
                         atk.troops = Math.max(0, atk.troops - attackerLoss);
 
                         activeShieldFort.factionId = atk.attackerId;
@@ -385,22 +385,19 @@ function processActiveAttacks() {
                         const cName = conqueror ? conqueror.name : 'Feind';
                         activeShieldFort.name = `Festung (${cName})`;
 
-                        // Rest-Garnison für den Eroberer hinterlassen
-                        let finalGarrison = Math.max(20, Math.floor(garrison * 0.20));
+                        let finalGarrison = Math.max(50, Math.floor(garrison * 0.10));
                         atk.troops = Math.max(0, atk.troops - finalGarrison);
                         activeShieldFort.garrison = finalGarrison;
 
-                        addVisualEffect(activeShieldFort.x, activeShieldFort.y, `⚡ WALL GEBROCHEN von ${cName}!`, '#10b981', '🏰');
+                        addVisualEffect(activeShieldFort.x, activeShieldFort.y, `💥 WEGGESCHMETTERT von ${cName}!`, '#10b981', '🏰');
                         if (typeof playSoundCapitalFall === 'function') playSoundCapitalFall();
                     } 
-                    // Fall B: Zähe Belagerung (Falls die Truppen knapp sind)
+                    // Fall B: Normale harte Belagerung
                     else {
-                        const defAdvantage = garrison > siegeForce ? (garrison / siegeForce) : 1.0;
-                        // Höherer Schaden an der Festung, wenn die Angreifer massiv in der Überzahl sind
-                        const siegeLoss = Math.max(35, Math.floor(siegeForce * 0.22)); 
+                        const siegeLoss = Math.max(100, Math.floor(siegeForce * 0.30)); // Deutlich schnellerer Festungsabbau
                         activeShieldFort.garrison -= siegeLoss;
 
-                        const attackerWallLoss = Math.floor(siegeLoss * (1.1 * Math.min(2.0, defAdvantage)));
+                        const attackerWallLoss = Math.floor(siegeLoss * 0.8);
                         atk.troops = Math.max(0, atk.troops - attackerWallLoss);
 
                         if (activeShieldFort.garrison <= 0) {
@@ -412,12 +409,12 @@ function processActiveAttacks() {
                             const cName = conqueror ? conqueror.name : 'Feind';
                             activeShieldFort.name = `Festung (${cName})`;
 
-                            const seedGarrison = Math.max(20, Math.floor(atk.troops * 0.10));
+                            const seedGarrison = Math.max(50, Math.floor(atk.troops * 0.05));
                             atk.troops = Math.max(0, atk.troops - seedGarrison);
                             activeShieldFort.garrison = seedGarrison;
 
-                            addVisualEffect(activeShieldFort.x, activeShieldFort.y, `🚩 Festung gestürmt!`, '#f59e0b', '🏰');
-                            if (typeof playSoundCapitalFall === 'function', playSoundCapitalFall());
+                            addVisualEffect(activeShieldFort.x, activeShieldFort.y, `🚩 Festung zerschlagen!`, '#f59e0b', '🏰');
+                            if (typeof playSoundCapitalFall === 'function') playSoundCapitalFall();
                         } else {
                             nextFrontierSet.add(activeShieldFort.idx);
                             continue;
