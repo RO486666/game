@@ -526,23 +526,13 @@
                 <div id="leaderboardContent" class="space-y-1 text-xs max-h-52 overflow-y-auto custom-scroll"></div>
             </div>
 
-            <!-- INGAME GEFECHTS-SHOP DRAWER MIT BUNKER-FESTUNG -->
+            <!-- INGAME GEFECHTS-SHOP DRAWER (OHNE FESTUNG) -->
             <div id="shopDrawer" class="pointer-events-auto hidden mt-2 ml-auto w-72 glass-card rounded-2xl p-3 border border-amber-500/60 animate-pop">
                 <div class="flex items-center justify-between border-b border-slate-700/80 pb-1.5 mb-2.5">
                     <span class="text-[11px] font-extrabold uppercase tracking-wider text-amber-300">⚡ Gefechts-Unterstützung</span>
                     <button id="closeShopBtn" class="text-xs text-slate-400 hover:text-white px-1 font-bold">✕</button>
                 </div>
                 <div class="space-y-2 text-xs">
-                    <div class="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between gap-2">
-                        <div>
-                            <div class="font-extrabold text-white text-xs">🏰 Festung errichten</div>
-                            <div class="text-[10px] text-slate-400">Truppenbunker per Klick</div>
-                        </div>
-                        <button id="btnBuildFortress" class="bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black px-2.5 py-1.5 rounded-lg text-[11px] mono-num shrink-0">
-                            150 💰
-                        </button>
-                    </div>
-
                     <div class="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between gap-2">
                         <div>
                             <div class="font-extrabold text-white text-xs">⚡ Sturmangriff</div>
@@ -580,7 +570,7 @@
                         <span id="hudSliderPct" class="mono-num font-black text-amber-400 text-sm">30%</span>
                         <span class="text-slate-400">(<span id="hudSliderTroops" class="mono-num font-bold text-white">165</span>)</span>
                     </div>
-                    <span class="text-[11px] text-sky-300 font-semibold">Tippe auf Nachbarn / Festung</span>
+                    <span class="text-[11px] text-sky-300 font-semibold">Tippe auf Nachbarn / Territorium</span>
                 </div>
 
                 <input id="hudAttackSlider" type="range" min="5" max="100" value="30" class="attack-slider mb-1.5">
