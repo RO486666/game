@@ -3,13 +3,12 @@
  ***********************************************************************/
 
 // Globaler Spielstand
-let playerGold = parseInt(localStorage.getItem('thd_gold') || '0', 10);
+let playerGold = parseInt(localStorage.getItem('thd_gold') || '100', 10);
 let upgradeMercLevel = parseInt(localStorage.getItem('thd_upg_merc') || '0', 10);
 let upgradeFortLevel = parseInt(localStorage.getItem('thd_upg_fort') || '0', 10);
 let upgradeTaxLevel = parseInt(localStorage.getItem('thd_upg_tax') || '0', 10);
 
 // Status für temporäre In-Game-Aktionen
-let pendingFortressBuild = false;
 let buffRushTicks = 0;   // Sturmangriff: 2.5x Front-Tempo
 let buffShieldTicks = 0; // Abwehrriegel: 3x Schutz
 
@@ -21,20 +20,22 @@ function saveAccountData() {
 }
 
 function getUpgradeCost(baseCost, currentLevel) {
-    return Math.floor(baseCost * Math.pow(1.35, currentLevel));
+    return Math.floor(baseCost * Math.pow(1.25, currentLevel));
 }
 
 function getCapPerPixel() {
     const sizeScale = (240 * 180) / TOTAL_CELLS;
-    return Math.max(15, Math.round(100 * sizeScale));
+    // HIER ERHÖHT: Maximaler Truppen-Multiplikator pro Pixel, damit Armeen größer und stabiler werden
+    return Math.max(35, Math.round(220 * sizeScale));
 }
 
 function getInterestRate(faction) {
     if (!faction || faction.landCount === 0) return 0;
     const maxCap = faction.landCount * getCapPerPixel();
     const ratio = Math.min(1, faction.troops / maxCap);
-    const sizeBonus = faction.landCount < 350 ? 1.45 : 1.0;
-    return Math.max(0.008, 0.082 * (1 - ratio * 0.80) * sizeBonus);
+    const sizeBonus = faction.landCount < 350 ? 1.6 : 1.1;
+    // HIER ERHÖHT: Deutlich schnelleres organisches Nachwachsen der Mannstärke
+    return Math.max(0.025, 0.14 * (1 - ratio * 0.65) * sizeBonus);
 }
 
 function updateWinterIce(freeze) {
@@ -125,36 +126,16 @@ function processGameTick() {
 
     currentCycleTick++;
     const capMult = getCapPerPixel();
-    const incomePerPixel = capMult * 0.015;
+    const incomePerPixel = capMult * 0.035; // HIER ERHÖHT: Schnellerer Nachschub pro Landfläche pro Tick
 
-    // Laufende Zinsen & BOT-FESTUNGS-REINFORCEMENT (alle 10 Ticks)
-    if (currentCycleTick % 10 === 0) {
+    // Laufende Zinsen & Truppen-Regeneration (alle 6 Ticks statt 10, damit es flüssiger wächst)
+    if (currentCycleTick % 6 === 0) {
         for (let i = 1; i < factions.length; i++) {
             const f = factions[i];
             if (!f || !f.alive) continue;
             const maxCap = f.landCount * capMult;
-            const interest = f.troops * (getInterestRate(f) * 0.22);
+            const interest = Math.max(15, f.troops * (getInterestRate(f) * 0.35)); // Mindest-Wachstumsschub
             f.troops = Math.min(maxCap, f.troops + interest);
-        }
-
-        // Bots verstärken vorhandene Festungen moderat
-        if (typeof mapPOIs !== 'undefined' && mapPOIs.length > 0) {
-            for (let p = 0; p < mapPOIs.length; p++) {
-                const poi = mapPOIs[p];
-                if (poi.type === 'garrison_fort' && poi.factionId > 1) {
-                    const bot = factions[poi.factionId];
-                    if (bot && bot.alive && bot.troops > 350) {
-                        const desiredGarrison = Math.floor(bot.troops * 0.25);
-                        if (poi.garrison < desiredGarrison) {
-                            const transfer = Math.max(15, Math.floor(bot.troops * 0.05));
-                            if (bot.troops - transfer > 150) {
-                                bot.troops -= transfer;
-                                poi.garrison += transfer;
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 
@@ -177,7 +158,7 @@ function processGameTick() {
             }
         }
 
-        const seasonGrowthMult = (typeof currentSeason !== 'undefined' && currentSeason === 'SUMMER') ? 1.25 : 1.0;
+        const seasonGrowthMult = (typeof currentSeason !== 'undefined' && currentSeason === 'SUMMER') ? 1.35 : 1.0;
 
         for (let i = 1; i < factions.length; i++) {
             const f = factions[i];
@@ -203,7 +184,7 @@ function processGameTick() {
             }
         }
 
-        // POI-Erträge
+        // POI-Erträge (Minen & Häfen)
         if (typeof mapPOIs !== 'undefined' && mapPOIs.length > 0) {
             for (const poi of mapPOIs) {
                 const holderId = ownerGrid[poi.idx];
@@ -211,15 +192,15 @@ function processGameTick() {
 
                 if (poi.type === 'mine') {
                     if (holderId === OWNER_PLAYER) {
-                        playerGold += poi.bonusGold;
-                        addVisualEffect(poi.x, poi.y, `+${poi.bonusGold} Gold`, '#fbbf24', '⛏️');
+                        playerGold += poi.bonusGold * 2;
+                        addVisualEffect(poi.x, poi.y, `+${poi.bonusGold * 2} Gold`, '#fbbf24', '⛏️');
                     } else if (factions[holderId] && factions[holderId].alive) {
-                        const botBonus = Math.floor(65 * (typeof getAiDifficultyMultiplier === 'function' ? getAiDifficultyMultiplier() : 1.0));
+                        const botBonus = Math.floor(120 * (typeof getAiDifficultyMultiplier === 'function' ? getAiDifficultyMultiplier() : 1.0));
                         factions[holderId].troops += botBonus;
                     }
                 } else if (poi.type === 'port') {
                     if (holderId === OWNER_PLAYER) {
-                        playerGold += 4;
+                        playerGold += 15;
                     }
                 }
             }
@@ -227,8 +208,8 @@ function processGameTick() {
 
         const p = factions[OWNER_PLAYER];
         if (p && p.alive) {
-            const taxMultiplier = 1.0 + (upgradeTaxLevel * 0.50);
-            const earnedGold = Math.max(1, Math.floor((p.landCount * 0.05) * taxMultiplier));
+            const taxMultiplier = 1.0 + (upgradeTaxLevel * 0.60);
+            const earnedGold = Math.max(15, Math.floor((p.landCount * 0.22) * taxMultiplier));
             playerGold += earnedGold;
             saveAccountData();
             updateUI();
@@ -236,7 +217,7 @@ function processGameTick() {
     }
 
     // ==============================================================
-    // BOT-KI: KONTROLLIERTER FESTUNGSBAU & STRATEGIE
+    // BOT-KI: STRATEGIE
     // ==============================================================
     const diffMult = typeof getAiDifficultyMultiplier === 'function' ? getAiDifficultyMultiplier() : 1.0;
     const powerLevel = typeof getPlayerPowerLevel === 'function' ? getPlayerPowerLevel() : 0;
@@ -246,11 +227,6 @@ function processGameTick() {
     for (let i = 2; i < factions.length; i++) {
         const bot = factions[i];
         if (!bot || !bot.alive) continue;
-
-        // Eigener Cooldown für Festungsbau wird kontinuierlich abgebaut
-        if (bot.fortCooldown && bot.fortCooldown > 0) {
-            bot.fortCooldown--;
-        }
 
         bot.aiCooldown--;
         if (bot.aiCooldown > 0) continue;
@@ -266,105 +242,19 @@ function processGameTick() {
             bot.troops = Math.min(maxCap, bot.troops + scalingBonus);
         }
 
-        // ==========================================================
-        // STRIKTER, SELTENER KI-FESTUNGSBAU (KEIN SPAM)
-        // ==========================================================
-        const canBuildFort = (!bot.fortCooldown || bot.fortCooldown <= 0) &&
-                             bot.landCount > 350 && 
-                             bot.troops > 1200;
-
-        if (typeof mapPOIs !== 'undefined' && canBuildFort) {
-            const maxFortsAllowed = bot.landCount > 1500 ? 2 : 1;
-            const myFortsCount = mapPOIs.filter(p => p.type === 'garrison_fort' && p.factionId === bot.id).length;
-
-            if (myFortsCount < maxFortsAllowed && Math.random() < 0.04) {
-                bot.fortCooldown = 400; // ~20 Sekunden Cooldown
-
-                const borderCandidates = [];
-                for (let y = 0; y < GRID_H; y += 4) {
-                    const row = y * GRID_W;
-                    for (let x = 0; x < GRID_W; x += 4) {
-                        const idx = row + x;
-                        if (ownerGrid[idx] === bot.id && borderMask[idx] === 1 && terrainGrid[idx] === TERRAIN_LAND) {
-                            // Nur an Grenzfeldern zu echten Feinden bauen
-                            let hasHostileNeighbor = false;
-                            for (let d = 0; d < 4; d++) {
-                                const nx = x + DIR4_X[d];
-                                const ny = y + DIR4_Y[d];
-                                if (nx >= 0 && nx < GRID_W && ny >= 0 && ny < GRID_H) {
-                                    const nOwner = ownerGrid[ny * GRID_W + nx];
-                                    if (nOwner > 0 && nOwner !== bot.id) {
-                                        hasHostileNeighbor = true;
-                                        break;
-                                    }
-                                }
-                            }
-
-                            if (hasHostileNeighbor) {
-                                const tooClose = mapPOIs.some(p => Math.hypot(p.x - x, p.y - y) < 80);
-                                if (!tooClose) {
-                                    borderCandidates.push({ x, y, idx });
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (borderCandidates.length > 0) {
-                    const pick = borderCandidates[Math.floor(Math.random() * borderCandidates.length)];
-                    const initialGarrison = Math.max(80, Math.floor(bot.troops * 0.15));
-
-                    bot.troops -= initialGarrison;
-                    mapPOIs.push({
-                        type: 'garrison_fort',
-                        factionId: bot.id,
-                        x: pick.x,
-                        y: pick.y,
-                        idx: pick.idx,
-                        name: `Festung (${bot.name})`,
-                        icon: '🛡️',
-                        garrison: initialGarrison,
-                        protectRadius: 26
-                    });
-
-                    addVisualEffect(pick.x, pick.y, `🛡️ Festung erbaut (${bot.name})`, '#f59e0b', '🏰');
-                    mapDirty = true;
-                    continue;
-                }
-            }
-        }
-
-        // Bereits in eine Schlacht verwickelt?
         const alreadyAttacking = activeAttacks.some(a => a.attackerId === bot.id) || 
             (typeof activeFleets !== 'undefined' && activeFleets.some(f => f.attackerId === bot.id));
         
         if (alreadyAttacking && capRatio < 0.85) continue;
 
-        // Sicherheitsprüfung mit Festungs-Einberechnung
         const evaluateTargetSafety = (targetFactionId) => {
             const enemy = factions[targetFactionId];
             if (!enemy || !enemy.alive) return { safe: true, effectiveTroops: 1 };
-
-            let totalDefTroops = enemy.troops;
-
-            if (typeof mapPOIs !== 'undefined') {
-                for (let p = 0; p < mapPOIs.length; p++) {
-                    const poi = mapPOIs[p];
-                    if (poi.type === 'garrison_fort' && poi.factionId === targetFactionId && poi.garrison > 0) {
-                        const dist = Math.hypot(poi.x - bot.centroidX, poi.y - bot.centroidY);
-                        if (dist < GRID_W * 0.40) {
-                            totalDefTroops += poi.garrison * 2.0;
-                        }
-                    }
-                }
-            }
-
             const minRatio = bot.archetype === 'berserker' ? 0.85 : 1.25;
-            const isSafe = (bot.troops * 0.50) >= (totalDefTroops * 0.40 * minRatio) || capRatio > 0.90;
-            return { safe: isSafe, effectiveTroops: totalDefTroops };
+            const isSafe = (bot.troops * 0.50) >= (enemy.troops * 0.40 * minRatio) || capRatio > 0.90;
+            return { safe: isSafe, effectiveTroops: enemy.troops };
         };
 
-        // 1. Neutrale Expansion
         if (bot.hasNeutralNeighbor && bot.troops > 60) {
             if (bot.archetype === 'expander' || capRatio > 0.45 || bot.troops > 200) {
                 const expandPct = bot.archetype === 'berserker' ? 0.35 : 0.22;
@@ -373,7 +263,6 @@ function processGameTick() {
             }
         }
 
-        // 2. Strategische POIs einnehmen
         let poiTargetOwner = null;
         if (typeof mapPOIs !== 'undefined' && Math.random() < 0.40) {
             for (const poi of mapPOIs) {
@@ -395,7 +284,6 @@ function processGameTick() {
             continue;
         }
 
-        // 3. Gegner-Auswahl
         let targetCandidate = null;
         let lowestDefPower = Infinity;
 
@@ -442,7 +330,7 @@ function checkWinLossConditions() {
     const anyBotAlive = factions.slice(2).some(b => b && b.alive && b.landCount > 0);
     if (!anyBotAlive) {
         appPhase = 'ENDED';
-        playerGold += 250;
+        playerGold += 400;
         saveAccountData();
         showEndModal(true);
     }
@@ -463,7 +351,7 @@ function showEndModal(isVictory) {
         icon.textContent = '👑';
         title.textContent = 'WELTHERRSCHAFT!';
         title.className = 'text-2xl font-black text-amber-400 mb-1';
-        desc.textContent = 'Alle Reiche besiegt! +250 💰 Siegesbeute erhalten!';
+        desc.textContent = 'Alle Reiche besiegt! +400 💰 Siegesbeute erhalten!';
     } else {
         icon.textContent = '💀';
         title.textContent = 'REICH GEFALLEN';
@@ -481,9 +369,9 @@ function updateShopLabels() {
         if (el) el.textContent = formatNumber(playerGold);
     });
 
-    const costMerc = getUpgradeCost(100, upgradeMercLevel);
-    const costFort = getUpgradeCost(250, upgradeFortLevel);
-    const costTax = getUpgradeCost(400, upgradeTaxLevel);
+    const costMerc = getUpgradeCost(70, upgradeMercLevel);
+    const costFort = getUpgradeCost(130, upgradeFortLevel);
+    const costTax = getUpgradeCost(200, upgradeTaxLevel);
 
     const mercBtn = document.getElementById('menuBuyMercBtn');
     if (mercBtn) mercBtn.textContent = `Lvl ${upgradeMercLevel} (${formatNumber(costMerc)} 💰)`;
@@ -514,7 +402,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const mercBtn = document.getElementById('menuBuyMercBtn');
     if (mercBtn) {
         mercBtn.addEventListener('click', () => {
-            const cost = getUpgradeCost(100, upgradeMercLevel);
+            const cost = getUpgradeCost(70, upgradeMercLevel);
             if (playerGold >= cost) {
                 playerGold -= cost;
                 upgradeMercLevel++;
@@ -529,7 +417,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const fortBtn = document.getElementById('menuBuyFortBtn');
     if (fortBtn) {
         fortBtn.addEventListener('click', () => {
-            const cost = getUpgradeCost(250, upgradeFortLevel);
+            const cost = getUpgradeCost(130, upgradeFortLevel);
             if (playerGold >= cost) {
                 playerGold -= cost;
                 upgradeFortLevel++;
@@ -544,7 +432,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const taxBtn = document.getElementById('menuBuyTaxBtn');
     if (taxBtn) {
         taxBtn.addEventListener('click', () => {
-            const cost = getUpgradeCost(400, upgradeTaxLevel);
+            const cost = getUpgradeCost(200, upgradeTaxLevel);
             if (playerGold >= cost) {
                 playerGold -= cost;
                 upgradeTaxLevel++;
@@ -572,31 +460,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    const btnBuildFortress = document.getElementById('btnBuildFortress');
-    if (btnBuildFortress) {
-        btnBuildFortress.addEventListener('click', () => {
-            if (playerGold >= 150) {
-                pendingFortressBuild = true;
-                if (shopDrawer) shopDrawer.classList.add('hidden');
-                addVisualEffect(camX, camY, 'Tippe auf dein Land für die Festung!', '#f59e0b', '🏰');
-            } else {
-                alert('Nicht genug Gold! (150 💰 benötigt)');
-            }
-        });
-    }
-
     const btnTacticalRush = document.getElementById('btnTacticalRush');
     if (btnTacticalRush) {
         btnTacticalRush.addEventListener('click', () => {
-            if (playerGold >= 120) {
-                playerGold -= 120;
+            if (playerGold >= 70) {
+                playerGold -= 70;
                 buffRushTicks = 300;
                 saveAccountData();
                 updateUI();
                 if (shopDrawer) shopDrawer.classList.add('hidden');
                 addVisualEffect(camX, camY, 'STURMANGRIFF AKTIV!', '#10b981', '⚡');
             } else {
-                alert('Nicht genug Gold! (120 💰 benötigt)');
+                alert('Nicht genug Gold! (70 💰 benötigt)');
             }
         });
     }
@@ -604,15 +479,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnTacticalShield = document.getElementById('btnTacticalShield');
     if (btnTacticalShield) {
         btnTacticalShield.addEventListener('click', () => {
-            if (playerGold >= 180) {
-                playerGold -= 180;
+            if (playerGold >= 90) {
+                playerGold -= 90;
                 buffShieldTicks = 400;
                 saveAccountData();
                 updateUI();
                 if (shopDrawer) shopDrawer.classList.add('hidden');
                 addVisualEffect(camX, camY, 'ABWEHRRIEGEL AKTIV!', '#38bdf8', '🛡️');
             } else {
-                alert('Nicht genug Gold! (180 💰 benötigt)');
+                alert('Nicht genug Gold! (90 💰 benötigt)');
             }
         });
     }
