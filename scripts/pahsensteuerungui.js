@@ -1,5 +1,5 @@
 /***********************************************************************
- * 7. HD-RENDERING, FRONT-FEEDBACK & UI-STEUERUNG (MIT BUNKER-FESTUNG)
+ * 7. HD-RENDERING, FRONT-FEEDBACK & UI-STEUERUNG (OHNE FESTUNGEN)
  ***********************************************************************/
 function updateMapPixelBuffer() {
     for (let idx = 0; idx < TOTAL_CELLS; idx++) {
@@ -137,7 +137,7 @@ function renderFrame(now) {
     }
 
     // ==========================================
-    // STRATEGISCHE KNOTENPUNKTE & FESTUNGEN
+    // STRATEGISCHE KNOTENPUNKTE (HAUPTSTÄDTE, MINEN, HÄFEN)
     // ==========================================
     if (typeof mapPOIs !== 'undefined' && mapPOIs.length > 0) {
         for (const poi of mapPOIs) {
@@ -146,9 +146,7 @@ function renderFrame(now) {
             const landOwnerId = ownerGrid[poi.idx] > 0 ? ownerGrid[poi.idx] : poi.factionId;
             const ownerFaction = factions[landOwnerId];
             const [fr, fg, fb] = ownerFaction ? ownerFaction.color : [148, 163, 184];
-            const isPlayer = landOwnerId === OWNER_PLAYER;
 
-            // Basis-Kreis für den Knotenpunkt
             const baseRad = Math.max(5.5, 7.5 / camZoom);
             ctx.beginPath();
             ctx.arc(px, py, baseRad, 0, Math.PI * 2);
@@ -158,52 +156,13 @@ function renderFrame(now) {
             ctx.strokeStyle = '#ffffff';
             ctx.stroke();
 
-            // Icon im Zentrum
             const iconSize = Math.max(8, 10 / camZoom);
             ctx.font = `${iconSize}px sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(poi.icon, px, py);
 
-            // Festungs-Garnisonsplakette
-            if (poi.type === 'garrison_fort') {
-                const garrison = poi.garrison || 0;
-                const txt = formatNumber(garrison);
-
-                const fontSize = Math.max(7.5, 9 / camZoom);
-                ctx.font = `800 ${fontSize}px "JetBrains Mono", monospace`;
-                const textWidth = ctx.measureText(txt).width;
-
-                const padX = 4 / camZoom;
-                const badgeW = textWidth + padX * 2 + (8 / camZoom);
-                const badgeH = fontSize + (4 / camZoom);
-                const bx = px - badgeW / 2;
-                const by = py + baseRad + (2 / camZoom);
-                const r = 3 / camZoom;
-
-                ctx.fillStyle = 'rgba(10, 15, 29, 0.88)';
-                ctx.beginPath();
-                ctx.roundRect(bx, by, badgeW, badgeH, r);
-                ctx.fill();
-                ctx.lineWidth = 1 / camZoom;
-                ctx.strokeStyle = `rgba(${fr}, ${fg}, ${fb}, 0.65)`;
-                ctx.stroke();
-
-                const fillPct = Math.min(1.0, garrison / 2500);
-                if (fillPct > 0) {
-                    const barH = 1.5 / camZoom;
-                    ctx.fillStyle = `rgb(${fr}, ${fg}, ${fb})`;
-                    ctx.beginPath();
-                    ctx.roundRect(bx + 1 / camZoom, by + badgeH - barH - (0.5 / camZoom), (badgeW - 2 / camZoom) * fillPct, barH, 1 / camZoom);
-                    ctx.fill();
-                }
-
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillStyle = isPlayer ? '#fde047' : '#ffffff';
-                ctx.fillText(`🛡️${txt}`, px, by + badgeH / 2 - (0.5 / camZoom));
-
-            } else if (camZoom > 1.4) {
+            if (camZoom > 1.4) {
                 const labelSize = 7.0 / camZoom;
                 ctx.font = `700 ${labelSize}px Inter, sans-serif`;
                 ctx.fillStyle = '#cbd5e1';
@@ -297,7 +256,6 @@ function renderFrame(now) {
 
         if (!isPlayer && radiusScreen < 14) continue;
 
-        // Spieler-Position dynamisch über den echten Schwerpunkt abbilden
         const cx = f.centroidX + 0.5;
         const cy = f.centroidY + 0.5;
 
@@ -582,102 +540,6 @@ function handleCanvasTap(screenX, screenY) {
     if (appPhase === 'PLAYING') {
         const targetOwner = ownerGrid[idx];
 
-        // 1. NEUE FESTUNG PLATZIEREN (150 GOLD)
-        if (typeof pendingFortressBuild !== 'undefined' && pendingFortressBuild) {
-            if (targetOwner === OWNER_PLAYER) {
-                playerGold -= 150;
-                pendingFortressBuild = false;
-                saveAccountData();
-
-                mapPOIs.push({
-                    type: 'garrison_fort',
-                    factionId: OWNER_PLAYER,
-                    x: x,
-                    y: y,
-                    idx: idx,
-                    name: 'Verteidigungs-Bunker',
-                    icon: '🏰',
-                    garrison: 0,
-                    protectRadius: 26
-                });
-
-                addVisualEffect(x, y, 'Festung erbaut! Tippe zum Einlagern.', '#10b981', '🏰');
-                if (typeof playSoundAttack === 'function') playSoundAttack();
-                updateUI();
-                return;
-            } else {
-                addVisualEffect(x, y, 'Nur auf eigenem Gebiet möglich!', '#f43f5e', '⚠️');
-                return;
-            }
-        }
-
-        // 2. FESTUNG ANWÄHLEN (HITBOX: EIGENE & FEINDLICHE)
-        let clickedFort = null;
-        if (typeof mapPOIs !== 'undefined') {
-            const tapTolerance = Math.max(16, 28 / camZoom);
-            for (let p = 0; p < mapPOIs.length; p++) {
-                const poi = mapPOIs[p];
-                if (poi.type === 'garrison_fort') {
-                    if (Math.hypot(poi.x - x, poi.y - y) <= tapTolerance) {
-                        clickedFort = poi;
-                        break;
-                    }
-                }
-            }
-        }
-
-        // 3. EIGENE FESTUNG: TRUPPEN EINLAGERN ODER RÄUMEN
-        if (clickedFort && clickedFort.factionId === OWNER_PLAYER) {
-            const player = factions[OWNER_PLAYER];
-            const pct = parseInt(document.getElementById('hudAttackSlider').value, 10) / 100;
-
-            if (pct >= 0.05) {
-                const deposit = Math.floor(player.troops * pct);
-                if (deposit >= 5 && player.troops > deposit) {
-                    player.troops -= deposit;
-                    clickedFort.garrison += deposit;
-
-                    addVisualEffect(clickedFort.x, clickedFort.y, `Bunker gefüllt: +${formatNumber(deposit)} 🛡️`, '#38bdf8', '📥');
-                    if (typeof playSoundAttack === 'function') playSoundAttack();
-                    updateUI();
-                    return;
-                } else {
-                    addVisualEffect(clickedFort.x, clickedFort.y, 'Zu wenig Truppen im Heer!', '#f43f5e', '⚠️');
-                    return;
-                }
-            }
-
-            if (clickedFort.garrison > 0) {
-                if (playerGold >= 50) {
-                    playerGold -= 50;
-                    player.troops += clickedFort.garrison;
-                    const freed = clickedFort.garrison;
-                    clickedFort.garrison = 0;
-                    saveAccountData();
-
-                    addVisualEffect(clickedFort.x, clickedFort.y, `Garnison geräumt! (+${formatNumber(freed)})`, '#f59e0b', '📤');
-                    if (typeof playSoundAttack === 'function') playSoundAttack();
-                    updateUI();
-                    return;
-                } else {
-                    addVisualEffect(clickedFort.x, clickedFort.y, 'Räumung kostet 50 Gold!', '#f43f5e', '💰');
-                    return;
-                }
-            } else {
-                addVisualEffect(clickedFort.x, clickedFort.y, 'Slider hochstellen zum Einlagern!', '#38bdf8', 'ℹ️');
-                return;
-            }
-        }
-
-        // 4. FEINDLICHE FESTUNG: GEZIELTE BELAGERUNG
-        if (clickedFort && clickedFort.factionId !== OWNER_PLAYER && clickedFort.factionId > 0) {
-            const pct = parseInt(document.getElementById('hudAttackSlider').value, 10) / 100;
-            addVisualEffect(clickedFort.x, clickedFort.y, `BELAGERUNG (${formatNumber(clickedFort.garrison)} 🛡️)`, '#ef4444', '🎯');
-            initiateAttack(OWNER_PLAYER, clickedFort.factionId, pct, clickedFort.x, clickedFort.y);
-            return;
-        }
-
-        // 5. NORMALER LANDKLICK ODER ANGRIFF
         if (targetOwner === OWNER_PLAYER) {
             addVisualEffect(x, y, 'Dein Reich', '#fde047', '👑');
             return;
