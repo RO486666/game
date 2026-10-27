@@ -126,7 +126,7 @@ function processGameTick() {
     const capMult = getCapPerPixel();
     const incomePerPixel = capMult * 0.045;
 
-    // Laufende Zinsen & Truppen-Regeneration (alle 8 Ticks - für alle absolut gleich fair)
+    // Laufende Zinsen & Truppen-Regeneration (alle 8 Ticks - absolut fair für alle)
     if (currentCycleTick % 8 === 0) {
         for (let i = 1; i < factions.length; i++) {
             const f = factions[i];
@@ -194,7 +194,7 @@ function processGameTick() {
                         playerGold += poi.bonusGold * 2;
                         addVisualEffect(poi.x, poi.y, `+${poi.bonusGold * 2} Gold`, '#fbbf24', '⛏️');
                     } else if (factions[holderId] && factions[holderId].alive) {
-                        const botBonus = Math.floor(80); // Faires festes Einkommen ohne Multiplikator
+                        const botBonus = Math.floor(80);
                         factions[holderId].troops += botBonus;
                     }
                 } else if (poi.type === 'port') {
@@ -216,7 +216,7 @@ function processGameTick() {
     }
 
     // ==============================================================
-    // BOT-KI: FAIRES, LAUERNDES VERHALTEN (OHNE JEGLICHEN CHEAT)
+    // BOT-KI: ARCHETYPEN-LOGIK (BERSERKER, HOARDER, EXPANDER, BALANCED)
     // ==============================================================
     const diffSelect = document.getElementById('genAiDifficulty');
     const diffMode = diffSelect ? diffSelect.value : 'normal';
@@ -228,7 +228,7 @@ function processGameTick() {
         bot.aiCooldown--;
         if (bot.aiCooldown > 0) continue;
 
-        const scanDelay = diffMode === 'impossible' ? 4 : (diffMode === 'hard' ? 6 : 9);
+        const scanDelay = diffMode === 'impossible' ? 5 : (diffMode === 'hard' ? 7 : 10);
         bot.aiCooldown = Math.floor(Math.random() * scanDelay) + 3;
 
         const maxCap = bot.landCount * capMult;
@@ -239,15 +239,16 @@ function processGameTick() {
         
         if (alreadyAttacking && capRatio < 0.85) continue;
 
-        // 1. Neutrale Expansion (Sichert sich freies Land)
-        if (bot.hasNeutralNeighbor && bot.troops > 150) {
-            if (bot.troops > 300 || capRatio > 0.40) {
-                initiateAttack(bot.id, OWNER_NEUTRAL, 0.22);
+        // 1. Neutrale Expansion (Expander greifen hier schneller zu)
+        if (bot.hasNeutralNeighbor && bot.troops > 180) {
+            const neutralThreshold = bot.archetype === 'expander' ? 0.30 : (bot.archetype === 'berserker' ? 0.40 : 0.55);
+            if (capRatio > neutralThreshold) {
+                initiateAttack(bot.id, OWNER_NEUTRAL, bot.archetype === 'berserker' ? 0.25 : 0.18);
                 continue;
             }
         }
 
-        // 2. Taktisches Lauern: Greift nur an, wenn der Feind geschwächt ist oder sie im Vorteil sind
+        // 2. Zielsuche basierend auf dem Charakter (Hoarder bunkert, Berserker stichelt aggressiv)
         let targetCandidate = null;
         let bestOpportunityScore = -Infinity;
 
@@ -256,15 +257,22 @@ function processGameTick() {
             const enemy = factions[nId];
             if (!enemy || !enemy.alive) continue;
 
+            // Unterschiedliche Vorausetzungen je nach Typ: Hoarder braucht dicken Puffer, Berserker greift früher an
+            let requiredAdvantage = 1.30;
+            if (bot.archetype === 'berserker') requiredAdvantage = 1.05;
+            if (bot.archetype === 'hoarder') requiredAdvantage = 1.50; // Wartet extrem lange
+
+            // Wenn das Cap des jeweiligen Bots seinen typischen Wert (capTrigger) nicht erreicht hat 
+            // und er nicht klar im Vorteil ist, wartet er ab (spart Mannstärke).
+            if (bot.troops < enemy.troops * requiredAdvantage && capRatio < bot.capTrigger) {
+                continue; 
+            }
+
             const enemyWars = activeAttacks.filter(a => a.attackerId === enemy.id || a.targetOwnerId === enemy.id).length;
             const troopAdvantage = bot.troops - enemy.troops;
             let opportunityScore = troopAdvantage + (enemyWars * 12000);
 
-            if (diffMode === 'hard' || diffMode === 'impossible') {
-                if (bot.troops >= enemy.troops * 0.90) {
-                    opportunityScore += 40000;
-                }
-            }
+            if (nId === OWNER_PLAYER) opportunityScore += 30000; // Spieler-Fokus
 
             if (opportunityScore > bestOpportunityScore) {
                 bestOpportunityScore = opportunityScore;
@@ -272,11 +280,22 @@ function processGameTick() {
             }
         }
 
+        // 3. Angriff oder kontrolliertes Sticheln ausführen
         if (targetCandidate) {
             const enemy = factions[targetCandidate];
             if (enemy && enemy.alive) {
-                const strikeForce = bot.troops > 500 ? 0.40 : 0.25;
-                if (bot.troops >= enemy.troops * 0.85 || capRatio >= 0.75) {
+                // Entweder ist der Bot am Limit (capTrigger) Oder er hat einen klaren Vorteil
+                if (capRatio >= bot.capTrigger || bot.troops >= enemy.troops * 1.25) {
+                    let strikeForce = 0.22; // Standard / Balanced
+                    
+                    if (bot.archetype === 'berserker') {
+                        strikeForce = 0.40; // Aggressiver Vorstoß
+                    } else if (bot.archetype === 'hoarder') {
+                        strikeForce = 0.15; // Bunkert fast immer, stichelt nur ganz vorsichtig
+                    } else if (bot.archetype === 'expander') {
+                        strikeForce = 0.28;
+                    }
+
                     initiateAttack(bot.id, enemy.id, strikeForce);
                 }
             }
