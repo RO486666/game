@@ -9,16 +9,16 @@ function getPlayerPowerLevel() {
     return (merc + fort + tax) / 3;
 }
 
-// KEINE PRODUKTIONS-BONI MEHR! Nur noch minimale Taktik-Boni für Verteidigung auf höheren Stufen.
+// Minimaler taktischer Verteidigungsbonus für höhere Schwierigkeitsgrade (kein Cheat, reines Fair Play)
 function getAiDifficultyDefenseBonus() {
     const diffSelect = document.getElementById('genAiDifficulty');
     const diffMode = diffSelect ? diffSelect.value : 'normal';
 
     switch (diffMode) {
-        case 'easy':       return 0.90; // Leichter Malus für die KI
-        case 'normal':     return 1.00; // Fair Play (1:1)
-        case 'hard':       return 1.10; // +10% Taktischer Verteidigungs-Bonus (wie von dir vorgeschlagen)
-        case 'impossible': return 1.20; // +20% Taktischer Verteidigungs-Bonus
+        case 'easy':       return 0.90;
+        case 'normal':     return 1.00;
+        case 'hard':       return 1.10; // +10% Taktischer Verteidigungs-Bonus
+        case 'impossible': return 1.18; // +18% Taktischer Verteidigungs-Bonus
         default:           return 1.00;
     }
 }
@@ -27,21 +27,25 @@ function createFaction(id, name, colorRGB, isBot) {
     const diffSelect = document.getElementById('genAiDifficulty');
     const diffMode = diffSelect ? diffSelect.value : 'normal';
 
+    // Die verschiedenen KI-Persönlichkeiten (Archetypen) auf der Karte mischen
     const archetypes = ['berserker', 'hoarder', 'expander', 'balanced'];
     const chosenArch = archetypes[Math.floor(Math.random() * archetypes.length)];
 
-    let aggroFactor = 0.35;
-    let targetCapThreshold = 0.65;
+    let targetCapThreshold = 0.72;
 
-    if (diffMode === 'easy') {
-        aggroFactor = 0.55;
-        targetCapThreshold = 0.80;
-    } else if (diffMode === 'hard') {
-        aggroFactor = 0.22; // Wartet länger, lauert auf Fehler
-        targetCapThreshold = 0.50;
-    } else if (diffMode === 'impossible') {
-        aggroFactor = 0.12; // Äußerst geduldig, schlägt erbarmungslos zu
-        targetCapThreshold = 0.35;
+    // Spezifische Spar- und Verhaltensschwellen je nach Charakter:
+    // - hoarder (Bunkerer): Wartet, bis er fast voll ist (88%), bevor er zuschlägt.
+    // - berserker (Aggressiv): Unruhig, greift früh und oft an (45%).
+    // - expander: Konzentriert sich auf neutrales Land.
+    // - balanced: Solider Taktiker.
+    if (chosenArch === 'hoarder') {
+        targetCapThreshold = 0.88; 
+    } else if (chosenArch === 'berserker') {
+        targetCapThreshold = 0.45; 
+    } else if (chosenArch === 'expander') {
+        targetCapThreshold = 0.58; 
+    } else {
+        targetCapThreshold = 0.72; 
     }
 
     let startingTroops = 600;
@@ -66,8 +70,7 @@ function createFaction(id, name, colorRGB, isBot) {
         hasNeutralNeighbor: true,
         aiCooldown: Math.floor(Math.random() * 6) + 3,
         archetype: chosenArch,
-        aggroThreshold: aggroFactor,
-        capTrigger: targetCapThreshold,
+        capTrigger: targetCapThreshold, // Individuelle Spar-Grenze des Bots
         stability: 100
     };
 }
