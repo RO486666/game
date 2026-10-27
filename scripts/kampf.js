@@ -323,7 +323,7 @@ function processActiveAttacks() {
             const ty = Math.floor(targetIdx / GRID_W);
 
             // ==============================================================
-            // 1. FESTUNGS-SCHUTZ: Liegt dieses Kachel im Einflussbereich einer Festung?
+            // 1. FESTUNGS-SCHUTZ: Liegt diese Kachel im Einflussbereich einer Festung?
             // ==============================================================
             let activeShieldFort = null;
             if (typeof mapPOIs !== 'undefined') {
@@ -331,7 +331,7 @@ function processActiveAttacks() {
                     const poi = mapPOIs[p];
                     if (poi.type === 'garrison_fort' && poi.factionId === atk.targetOwnerId && poi.factionId !== atk.attackerId && poi.garrison > 0) {
                         const dist = Math.hypot(poi.x - tx, poi.y - ty);
-                        const radius = poi.protectRadius || 28;
+                        const radius = poi.protectRadius || 26;
                         if (dist <= radius) {
                             activeShieldFort = poi;
                             break;
@@ -341,84 +341,70 @@ function processActiveAttacks() {
             }
 
             // ==============================================================
-            // 2. KAMPF GEGEN ODER UM EINE FESTUNG
+            // 2. KAMPF GEGEN ODER UM EINE FESTUNG (KEIN DEADLOCK MEHR!)
             // ==============================================================
             if (activeShieldFort) {
-                // Abwehrfeuer der Festung auf die vorrückenden Truppen
-                if (!touchedFortressesThisStep.has(activeShieldFort.idx)) {
-                    touchedFortressesThisStep.add(activeShieldFort.idx);
+                const garrison = activeShieldFort.garrison;
+                const siegeForce = atk.troops;
 
-                    const fortVolley = Math.max(20, Math.floor(activeShieldFort.garrison * 0.06) + Math.floor(atk.troops * 0.03));
-                    atk.troops = Math.max(0, atk.troops - fortVolley);
+                // FALL A: MASSIVE ÜBERMACHT (z.B. 10k gegen 1k -> Sofortiger Durchbruch!)
+                // Wenn deine Armee mindestens 2x so groß ist wie die Garnison, bricht die Festung sofort zusammen!
+                if (siegeForce >= garrison * 2.0) {
+                    const attackerLoss = Math.floor(garrison * 0.5); // Du verlierst nur die Hälfte der Garnisonsgröße
+                    atk.troops = Math.max(0, atk.troops - attackerLoss);
 
-                    const garrisonWear = Math.max(2, Math.floor(atk.troops * 0.003));
-                    activeShieldFort.garrison = Math.max(0, activeShieldFort.garrison - garrisonWear);
-                }
+                    activeShieldFort.factionId = atk.attackerId;
+                    ownerGrid[activeShieldFort.idx] = atk.attackerId;
 
-                // WICHTIGSTE KORREKTUR:
-                // Wenn der Feind noch NICHT direkt auf dem Festungsfeld steht:
-                if (targetIdx !== activeShieldFort.idx) {
-                    // Prüfen, ob der Feind überhaupt physisch neben der Festung steht
-                    const distToFortCenter = Math.hypot(activeShieldFort.x - tx, activeShieldFort.y - ty);
+                    const conqueror = factions[atk.attackerId];
+                    const cName = conqueror ? conqueror.name : 'Feind';
+                    activeShieldFort.name = `Festung (${cName})`;
+
+                    // Neue kleine Start-Garnison für den Eroberer
+                    const finalGarrison = Math.max(25, Math.floor(garrison * 0.15));
+                    activeShieldFort.garrison = finalGarrison;
+
+                    addVisualEffect(activeShieldFort.x, activeShieldFort.y, `💥 FESTUNG ÜBERRANNT (${cName})!`, '#10b981', '🏰');
+                    if (typeof playSoundCapitalFall === 'function') playSoundCapitalFall();
                     
-                    // Nur wenn der Angreifer DIREKT an der Festung steht (Nachbarfeld), darf er sie belagern!
-                    if (distToFortCenter <= 1.5) {
-                        nextFrontierSet.add(activeShieldFort.idx);
-                    }
-                    
-                    // Das Feld im Radius wird BLOCKIERT und kann nicht eingenommen werden!
-                    continue;
-                } else {
-                    // Der Feind steht DIREKT an der Festung und stürmt sie:
-                    const garrison = activeShieldFort.garrison;
-                    const siegeForce = atk.troops;
+                    // Kein 'continue'! Die Truppen rollen im selben Tick direkt normal weiter übers Land!
+                } 
+                // FALL B: REGULÄRER FESTUNGSKAMPF (Armee ist kleiner als 2x Garnison)
+                else {
+                    // Pro Tick wird nur EINMAL pro Festung gekämpft (nicht pro Grenzpixel!)
+                    if (!touchedFortressesThisStep.has(activeShieldFort.idx)) {
+                        touchedFortressesThisStep.add(activeShieldFort.idx);
 
-                   // Fall A: Überrennen (Massiver Overkill bei 100k vs. kleine Garnison)
-                    if (siegeForce >= garrison * 1.5 || siegeForce > 20000) {
-                        const attackerLoss = Math.floor(garrison * 0.15); // Minimaler Verlust für dich
-                        atk.troops = Math.max(0, atk.troops - attackerLoss);
+                        // Wie stark drückt der Angreifer gegen die Garnison?
+                        const ratio = siegeForce / Math.max(1, garrison);
+                        
+                        // Schaden an der Festung (mindestens 15% der Angreiferstärke pro Tick)
+                        const dmgToFort = Math.max(25, Math.floor(siegeForce * 0.18 * ratio));
+                        // Schaden am Angreifer (Festung hat leichten Verteidigungsbonus von 1.2x)
+                        const dmgToAttacker = Math.max(20, Math.floor(dmgToFort * 1.2));
 
-                        activeShieldFort.factionId = atk.attackerId;
-                        ownerGrid[activeShieldFort.idx] = atk.attackerId;
+                        activeShieldFort.garrison = Math.max(0, activeShieldFort.garrison - dmgToFort);
+                        atk.troops = Math.max(0, atk.troops - dmgToAttacker);
 
-                        const conqueror = factions[atk.attackerId];
-                        const cName = conqueror ? conqueror.name : 'Feind';
-                        activeShieldFort.name = `Festung (${cName})`;
-
-                        let finalGarrison = Math.max(50, Math.floor(garrison * 0.10));
-                        atk.troops = Math.max(0, atk.troops - finalGarrison);
-                        activeShieldFort.garrison = finalGarrison;
-
-                        addVisualEffect(activeShieldFort.x, activeShieldFort.y, `💥 WEGGESCHMETTERT von ${cName}!`, '#10b981', '🏰');
-                        if (typeof playSoundCapitalFall === 'function') playSoundCapitalFall();
-                    } 
-                    // Fall B: Normale harte Belagerung
-                    else {
-                        const siegeLoss = Math.max(100, Math.floor(siegeForce * 0.30)); // Deutlich schnellerer Festungsabbau
-                        activeShieldFort.garrison -= siegeLoss;
-
-                        const attackerWallLoss = Math.floor(siegeLoss * 0.8);
-                        atk.troops = Math.max(0, atk.troops - attackerWallLoss);
-
+                        // Wenn die Garnison auf 0 fällt -> Eroberung!
                         if (activeShieldFort.garrison <= 0) {
-                            activeShieldFort.garrison = 0;
                             activeShieldFort.factionId = atk.attackerId;
                             ownerGrid[activeShieldFort.idx] = atk.attackerId;
 
                             const conqueror = factions[atk.attackerId];
                             const cName = conqueror ? conqueror.name : 'Feind';
                             activeShieldFort.name = `Festung (${cName})`;
+                            activeShieldFort.garrison = Math.max(20, Math.floor(atk.troops * 0.05));
 
-                            const seedGarrison = Math.max(50, Math.floor(atk.troops * 0.05));
-                            atk.troops = Math.max(0, atk.troops - seedGarrison);
-                            activeShieldFort.garrison = seedGarrison;
-
-                            addVisualEffect(activeShieldFort.x, activeShieldFort.y, `🚩 Festung zerschlagen!`, '#f59e0b', '🏰');
+                            addVisualEffect(activeShieldFort.x, activeShieldFort.y, `🚩 Festung geknackt!`, '#f59e0b', '🏰');
                             if (typeof playSoundCapitalFall === 'function') playSoundCapitalFall();
-                        } else {
-                            nextFrontierSet.add(activeShieldFort.idx);
-                            continue;
                         }
+                    }
+
+                    // Solange die Festung noch steht, bleibt die aktuelle Frontlinie erhalten (kein Löschen der Front!)
+                    if (activeShieldFort.garrison > 0) {
+                        nextFrontierSet.add(targetIdx);
+                        continue;
                     }
                 }
             }
